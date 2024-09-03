@@ -4,27 +4,35 @@ import (
 	"errors"
 	"fmt"
 	MQTT "github.com/eclipse/paho.mqtt.golang"
+	"github.com/rotisserie/eris"
 	"net/url"
-	"time"
 )
 
 type MqttClient struct {
+	client *MQTT.Client
 }
 
-func ConnectMqtt(url url.URL) (mqttClient MqttClient, err error){
-	userInfo := url.User
+func onConnectionLost(client MQTT.Client, err error) {
+	fmt.Println("Connection lost:", err)
+}
+
+func ConnectMqtt(url url.URL) (mqttClient *MqttClient, err error) {
+	userInfo := *url.User
+	var password string
+	var hasPassword bool
 	if userInfo != nil {
 		return nil, errors.New("mqtt url needs to have username and password")
 	}
-	var password string
-	if password, hasPassword := userInfo.Password()
+	if password, hasPassword = userInfo.Password(); !hasPassword {
+		return nil, errors.New("mqtt url needs to have username and password")
+	}
 
-	Connect("tcp://broker.hivemq.com:1883", "go_mqtt_client", "username", "password")
-}
-
-func Connect(broker string, clientID string, username string, password string) (MQTT.Client, error) {
-	opts := MQTT.NewClientOptions().AddBroker("tcp://broker.hivemq.com:1883")
-	opts.SetClientID("go_mqtt_client")
+	url.User = nil
+	opts := MQTT.NewClientOptions().AddBroker(url.String()).
+		SetClientID("duc2mqtt").
+		SetAutoReconnect(true).
+		SetConnectRetry(true).
+		SetConnectionLostHandler(onConnectionLost)
 
 	// Define the message handler
 	var messagePubHandler MQTT.MessageHandler = func(client MQTT.Client, msg MQTT.Message) {
@@ -37,23 +45,39 @@ func Connect(broker string, clientID string, username string, password string) (
 	// Create and start the client using the above options
 	client := MQTT.NewClient(opts)
 	if token := client.Connect(); token.Wait() && token.Error() != nil {
-		panic(token.Error())
+		return nil, eris.Wrapf(token.Error(), "failed to connect to %s", url.String())
+	}
+	mqttClient = &MqttClient{
+		client: client,
+	}
+}
+
+// sendSensorData sends sensor data to Home Assistant
+func sendSensorData(client MQTT.Client, sensorID string, data map[string]interface{}) {
+	discoveryPayload := DiscoveryMessage{
+		Name:                sensorID,
+		UniqueID:            sensorID,
+		StateTopic:          fmt.Sprintf("homeassistant/sensor/%s/state", sensorID),
+		AvailabilityTopic:   fmt.Sprintf("homeassistant/sensor/%s/availability", sensorID),
+		PayloadAvailable:    "online",
+		PayloadNotAvailable: "offline",
+		Device: Device{
+			Identifiers:  []string{sensorID},
+			Name:         "Golang MQTT Sensor",
+			Model:        "Golang Model",
+			Manufacturer: "Golang Manufacturer",
+		},
 	}
 
-	// Subscribe to a topic
-	topic := "my/testtopic"
-	if token := client.Subscribe(topic, 1, nil); token.Wait() && token.Error() != nil {
-		fmt.Println(token.Error())
-		return
+	// Send the discovery message once
+	sendMessage(client, fmt.Sprintf("homeassistant/sensor/%s/config", sensorID), discoveryPayload)
+
+	// Send sensor's availability status
+	sendMessage(client, fmt.Sprintf("homeassistant/sensor/%s/availability", sensorID), AvailabilityMessage{"online"})
+
+	// Periodically send sensor data
+	for key, value := range data {
+		sensorPayload := map[string]interface{}{key: value}
+		sendMessage(client, fmt.Sprintf("homeassistant/sensor/%s/state", sensorID), sensorPayload)
 	}
-	fmt.Printf("Subscribed to topic: %s\n", topic)
-
-	// Publish a test message
-	token := client.Publish(topic, 0, false, "Hello MQTT")
-	token.Wait()
-
-	time.Sleep(3 * time.Second) // Wait for message to be received
-
-	// Disconnect the client
-	client.Disconnect(250)
 }
