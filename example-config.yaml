@@ -1,0 +1,6 @@
+mqtt:
+  url: tcp://test.mosquitto.org:1883
+duc:
+  url: foo
+  password: bar
+  host: 192.168.0.0

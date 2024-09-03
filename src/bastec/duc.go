@@ -12,16 +12,11 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"strings"
 )
 
 var logger = logrus.WithField("logger", "bastec")
-
-type BastecConfig struct {
-	User   string
-	Passwd string
-	Host   string
-}
 
 type Salts struct {
 	SaltA []byte `json:"salt_a"`
@@ -29,16 +24,15 @@ type Salts struct {
 }
 
 type BastecClient struct {
-	session Session
-	host    string
+	sessionId  string
+	RequestURL url.URL
 }
 
 type Session struct {
-	Name      string `json:"name"`
-	UserId    string `json:"userid"`
-	Company   string `json:"company"`
-	City      string `json:"city"`
-	SessionId string
+	Name    string `json:"name"`
+	UserId  string `json:"userid"`
+	Company string `json:"company"`
+	City    string `json:"city"`
 }
 
 type BrowseResponse struct {
@@ -82,9 +76,24 @@ type JsonRpcRequest struct {
 	Id             int        `json:"id"`
 }
 
-func Connect(config BastecConfig) (bastecClient *BastecClient, err error) {
-	requestUrl := fmt.Sprintf("http://%s/if/login.js?username=%s", config.Host, config.User)
-	res, err := http.Get(requestUrl)
+func Connect(url url.URL) (bastecClient *BastecClient, err error) {
+	if url.Path != "" {
+		return nil, errors.New("invalid url path. It must be empty")
+	}
+	if url.User == nil {
+		return nil, errors.New("missing user & password in url")
+	}
+	if _, hasPassword := url.User.Password(); !hasPassword {
+		return nil, errors.New("missing password in url")
+	}
+	user := url.User.Username()
+	password, _ := url.User.Password()
+	requesterURL := *url.JoinPath("if/login.js")
+	query := requesterURL.Query()
+	query.Add("username", user)
+	requesterURL.RawQuery = query.Encode()
+	requesterURL.User = nil
+	res, err := http.Get(requesterURL.String())
 	if err != nil {
 		return
 	}
@@ -103,10 +112,13 @@ func Connect(config BastecConfig) (bastecClient *BastecClient, err error) {
 		return
 	}
 
-	hash := generateBastecHash(config.Passwd, saltResponse)
+	hash := generateBastecHash(password, saltResponse)
 
-	loginUrl := fmt.Sprintf("http://%s/if/login.js?username=%s&hash=%s", config.Host, config.User, hash)
-	loginResponse, err := http.Get(loginUrl)
+	loginUrl := requesterURL
+	x := requesterURL.Query()
+	x.Add("hash", hash)
+	loginUrl.RawQuery = x.Encode()
+	loginResponse, err := http.Get(loginUrl.String())
 	if err != nil {
 		return
 	}
@@ -126,36 +138,42 @@ func Connect(config BastecConfig) (bastecClient *BastecClient, err error) {
 		return
 	}
 
+	var sessionId string
 	var cookies = loginResponse.Cookies()
 	for i := 0; i < len(cookies); i++ {
 		var cookie = cookies[i]
 		if cookie.Name == "SESSION_ID" {
-			session.SessionId = cookie.Value
+			sessionId = cookie.Value
 			break
 		}
 	}
 
-	bastecClient = &BastecClient{session: session}
+	rpcURL := requesterURL
+	rpcURL.RawQuery = ""
+
+	bastecClient = &BastecClient{
+		sessionId:  sessionId,
+		RequestURL: rpcURL,
+	}
 	return
 }
 
-func (bastecClient *BastecClient) GetVersion() {
+func (bastecClient *BastecClient) GetVersion() (response []byte, err error) {
 	var rpcRequest = JsonRpcRequest{
 		JsonRpcVersion: "2.0",
 		Method:         "pdb.version",
 		Id:             1,
 	}
 
-	// SERIALIZING should always work
-	response, err := bastecClient.jsonRpc(rpcRequest)
+	response, err = bastecClient.jsonRpc(rpcRequest)
 	if err != nil {
-		logger.Fatal(eris.Wrap(err, "failed to execute jsonRPC"))
+		return nil, eris.Wrap(err, "failed to execute GetVersion jsonRPC")
 	}
-	log.Println(string(response))
+	return
 
 }
 
-func (bastecClient *BastecClient) Browse() error {
+func (bastecClient *BastecClient) Browse() (valueResponse *BrowseResponse, err error) {
 	var rpcRequest = JsonRpcRequest{
 		JsonRpcVersion: "2.0",
 		Method:         "pdb.browse",
@@ -164,23 +182,23 @@ func (bastecClient *BastecClient) Browse() error {
 
 	response, err := bastecClient.jsonRpc(rpcRequest)
 	if err != nil {
-		return eris.Wrapf(err, "failed to execute jsonRPC")
+		return nil, eris.Wrapf(err, "failed to execute jsonRPC")
 	}
 
 	var browseResponse BrowseResponse
 	err = json.Unmarshal(response, &browseResponse)
 	if err != nil {
-		return eris.Wrapf(err, "failed to parse json")
+		return nil, eris.Wrapf(err, "failed to parse json")
 	}
 
 	if logger.Level >= logrus.TraceLevel {
 		b, _ := json.MarshalIndent(browseResponse, "", "\t")
 		logger.Trace(string(b))
 	}
-	return nil
+	return &browseResponse, nil
 }
 
-func (bastecClient *BastecClient) GetValues(values []string) (*ValuesResponse, error) {
+func (bastecClient *BastecClient) GetValues(values []string) (response *ValuesResponse, err error) {
 
 	params := [][]string{values}
 
@@ -191,17 +209,16 @@ func (bastecClient *BastecClient) GetValues(values []string) (*ValuesResponse, e
 		Id:             3,
 	}
 
-	response, err := bastecClient.jsonRpc(rpcRequest)
+	jsonResponse, err := bastecClient.jsonRpc(rpcRequest)
 	if err != nil {
-		return nil, eris.Wrapf(err, "failed jsonRpc request")
+		return nil, eris.Wrapf(err, "failed GetValues jsonRpc request")
 	}
-	logger.Debug(string(response))
-	var valuesResponse ValuesResponse
-	err = json.Unmarshal(response, &valuesResponse)
+	logger.Debug(string(jsonResponse))
+	err = json.Unmarshal(jsonResponse, &response)
 	if err != nil {
-		return nil, eris.Wrapf(err, "failed to unmarshal json")
+		return
 	}
-	return &valuesResponse, nil
+	return
 }
 
 func (bastecClient *BastecClient) jsonRpc(request JsonRpcRequest) (body []byte, err error) {
@@ -211,13 +228,13 @@ func (bastecClient *BastecClient) jsonRpc(request JsonRpcRequest) (body []byte, 
 	}
 	log.Println(string(jsonBody))
 	reader := bytes.NewReader(jsonBody)
-	requestUrl := fmt.Sprintf("http://%s/if/json_rpc.js", bastecClient.host)
+	requestUrl := bastecClient.RequestURL.String()
 	req, err := http.NewRequest(http.MethodPost, requestUrl, reader)
 	if err != nil {
 		logger.Fatal(eris.Wrapf(err, "failed to create new request"))
 	}
 	req.Header.Add("Content-Type", "application/json")
-	req.Header.Add("Cookie", fmt.Sprintf("SESSION_ID=%s", bastecClient.session.SessionId))
+	req.Header.Add("Cookie", fmt.Sprintf("SESSION_ID=%s", bastecClient.sessionId))
 
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {

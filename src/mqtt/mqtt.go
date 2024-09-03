@@ -1,10 +1,25 @@
 package mqtt
 
 import (
+	"errors"
+	"fmt"
 	MQTT "github.com/eclipse/paho.mqtt.golang"
+	"net/url"
+	"time"
 )
 
 type MqttClient struct {
+}
+
+func ConnectMqtt(url url.URL) (mqttClient MqttClient, err error){
+	userInfo := url.User
+	if userInfo != nil {
+		return nil, errors.New("mqtt url needs to have username and password")
+	}
+	var password string
+	if password, hasPassword := userInfo.Password()
+
+	Connect("tcp://broker.hivemq.com:1883", "go_mqtt_client", "username", "password")
 }
 
 func Connect(broker string, clientID string, username string, password string) (MQTT.Client, error) {
