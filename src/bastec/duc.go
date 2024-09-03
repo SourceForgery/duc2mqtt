@@ -96,14 +96,14 @@ func Connect(config BastecConfig) (bastecClient *BastecClient, err error) {
 	if err != nil {
 		return
 	}
-	var saltResponse Salts
 
+	var saltResponse Salts
 	err = json.Unmarshal(body, &saltResponse)
 	if err != nil {
 		return
 	}
 
-	var hash = generateBastecHash(config.Passwd, saltResponse)
+	hash := generateBastecHash(config.Passwd, saltResponse)
 
 	loginUrl := fmt.Sprintf("http://%s/if/login.js?username=%s&hash=%s", config.Host, config.User, hash)
 	loginResponse, err := http.Get(loginUrl)
@@ -121,7 +121,6 @@ func Connect(config BastecConfig) (bastecClient *BastecClient, err error) {
 	}
 
 	var session Session
-
 	err = json.Unmarshal(loginBody, &session)
 	if err != nil {
 		return
@@ -147,6 +146,7 @@ func (bastecClient *BastecClient) GetVersion() {
 		Id:             1,
 	}
 
+	// SERIALIZING should always work
 	response, err := bastecClient.jsonRpc(rpcRequest)
 	if err != nil {
 		logger.Fatal(eris.Wrap(err, "failed to execute jsonRPC"))
@@ -155,7 +155,7 @@ func (bastecClient *BastecClient) GetVersion() {
 
 }
 
-func (bastecClient *BastecClient) Browse() {
+func (bastecClient *BastecClient) Browse() error {
 	var rpcRequest = JsonRpcRequest{
 		JsonRpcVersion: "2.0",
 		Method:         "pdb.browse",
@@ -164,19 +164,20 @@ func (bastecClient *BastecClient) Browse() {
 
 	response, err := bastecClient.jsonRpc(rpcRequest)
 	if err != nil {
-		logger.Fatal(eris.Wrapf(err, "failed to execute jsonRPC"))
+		return eris.Wrapf(err, "failed to execute jsonRPC")
 	}
 
 	var browseResponse BrowseResponse
 	err = json.Unmarshal(response, &browseResponse)
 	if err != nil {
-		logger.Fatal(eris.Wrapf(err, "failed to parse json"))
+		return eris.Wrapf(err, "failed to parse json")
 	}
 
 	if logger.Level >= logrus.TraceLevel {
 		b, _ := json.MarshalIndent(browseResponse, "", "\t")
 		logger.Trace(string(b))
 	}
+	return nil
 }
 
 func (bastecClient *BastecClient) GetValues(values []string) (*ValuesResponse, error) {
