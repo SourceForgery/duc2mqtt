@@ -1,5 +1,6 @@
 mqtt:
   url: tcp://test.mosquitto.org:1883
   uniqueId: duccer
+  topicPrefix: homeassistant
 duc:
   url: http://foo:bar@192.168.0.0

@@ -3,7 +3,7 @@ package main
 
 import (
 	"duc2mqtt/src/bastec"
-	MQTT "github.com/eclipse/paho.mqtt.golang"
+	"duc2mqtt/src/mqtt"
 	"gopkg.in/yaml.v3"
 	"net/url"
 	"os"
@@ -15,7 +15,9 @@ import (
 // Config represents the YAML configuration structure.
 type Config struct {
 	Mqtt struct {
-		Url string `yaml:"url"`
+		Url         string `yaml:"url"`
+		UniqueId    string `yaml:"uniqueId"`
+		topicPrefix string `yaml:"topicPrefix"`
 	} `yaml:"mqtt"`
 	Duc struct {
 		Url string `yaml:"url"`
@@ -51,7 +53,17 @@ func main() {
 		logrus.Fatal("Failed to connect to DUC: ", err)
 	}
 
-	mqttClient := initializeMqtt(opts, config)
+	mqttUrl, err := url.Parse(config.Mqtt.Url)
+	if err != nil {
+		logrus.Fatal("Failed to parse mqtt url", err)
+	}
+
+	mqttClient, err := mqtt.ConnectMqtt(*mqttUrl, config.Mqtt.UniqueId, config.Mqtt.topicPrefix)
+	if err != nil {
+		logrus.Fatal("Failed to connect to mqtt", err)
+	}
+
+	mqttClient.SubscribeStatus()
 
 	browse, err := client.Browse()
 	if err != nil {
@@ -60,11 +72,6 @@ func main() {
 	for _, point := range browse.Result.Points {
 
 	}
-}
-
-func initializeMqtt(opts Options, config Config) *bastec.BrowseResponse {
-	opts2 := MQTT.NewClientOptions().AddBroker("")
-
 }
 
 func parseConfig(opts Options) Config {

@@ -9,9 +9,10 @@ func logger() *logrus.Entry {
 	return logrus.WithField("logger", "mqtt")
 }
 
-// AvailabilityMessage represents the availability payload for Home Assistant.
+// AvailabilityMessage represents the MQTT availability message
 type AvailabilityMessage struct {
-	Payload string `json:"payload"`
+	DeviceID string `json:"device_id"`
+	Status   string `json:"status"`
 }
 
 // DiscoveryMessage represents the discovery payload to be sent to Home Assistant.
@@ -33,32 +34,35 @@ type Device struct {
 	Manufacturer string   `json:"manufacturer"`
 }
 
-func (client *MqttClient) avail() {
-	availabilityPayload := AvailabilityMessage{"online"}
-	client.sendMessage("homeassistant/sensor/sensor_12345/availability", availabilityPayload)
+type SensorState struct {
+	State string `json:"state"`
 }
 
-func (client *MqttClient) sendSensorData(sensorID string, data map[string]interface{}) {
-	discoveryPayload := DiscoveryMessage{
-		Name:                sensorID,
-		UniqueID:            sensorID,
-		StateTopic:          fmt.Sprintf("homeassistant/sensor/%s/state", sensorID),
-		AvailabilityTopic:   fmt.Sprintf("homeassistant/sensor/%s/availability", sensorID),
-		PayloadAvailable:    "online",
-		PayloadNotAvailable: "offline",
-		Device: Device{
-			Identifiers:  []string{sensorID},
-			Name:         "Golang MQTT Sensor",
-			Model:        "Golang Model",
-			Manufacturer: "Golang Manufacturer",
-		},
-	}
-
-	client.sendMessage(fmt.Sprintf("homeassistant/sensor/%s/config", sensorID), discoveryPayload)
-	client.sendMessage(fmt.Sprintf("homeassistant/sensor/%s/availability", sensorID), AvailabilityMessage{"online"})
-
-	for key, value := range data {
-		sensorPayload := map[string]interface{}{key: value}
-		client.sendMessage(fmt.Sprintf("homeassistant/sensor/%s/state", sensorID), sensorPayload)
-	}
+func (client *MqttClient) Available() {
+	client.sendMessage(fmt.Sprintf("%s/sensor/%s/availability", client.prefix, client.uniqueId), "online")
 }
+
+//func (client *MqttClient) SendSensorData(sensorID string, data SensorState) {
+//	discoveryPayload := DiscoveryMessage{
+//		Name:                sensorID,
+//		UniqueID:            sensorID,
+//		StateTopic:          fmt.Sprintf("homeassistant/sensor/%s/state", sensorID),
+//		AvailabilityTopic:   fmt.Sprintf("homeassistant/sensor/%s/availability", sensorID),
+//		PayloadAvailable:    "online",
+//		PayloadNotAvailable: "offline",
+//		Device: Device{
+//			Identifiers:  []string{sensorID},
+//			Name:         "Golang MQTT Sensor",
+//			Model:        "Golang Model",
+//			Manufacturer: "Golang Manufacturer",
+//		},
+//	}
+//
+//	client.sendMessage(fmt.Sprintf("homeassistant/sensor/%s/config", sensorID), discoveryPayload)
+//	client.sendMessage(fmt.Sprintf("homeassistant/sensor/%s/availability", sensorID), AvailabilityMessage{"online"})
+//
+//	for key, value := range data {
+//		sensorPayload :=
+//			client.sendMessage(fmt.Sprintf("homeassistant/sensor/%s/state", sensorID), sensorPayload)
+//	}
+//}

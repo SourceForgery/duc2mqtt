@@ -11,7 +11,10 @@ import (
 )
 
 type MqttClient struct {
-	client MQTT.Client
+	client   MQTT.Client
+	uniqueId string
+	prefix   string
+	Discover []Sensors
 }
 
 func onConnectionLost(client MQTT.Client, err error) {
@@ -33,13 +36,13 @@ func (client *MqttClient) sendMessage(topic string, payload interface{}) {
 	}
 }
 
-func ConnectMqtt(url url.URL) (mqttClient *MqttClient, err error) {
-	userInfo := *url.User
+func ConnectMqtt(url url.URL, uniqueId string, prefix string) (mqttClient *MqttClient, err error) {
 	var password string
 	var hasPassword bool
-	if userInfo != nil {
+	if url.User == nil {
 		return nil, errors.New("mqtt url needs to have username and password")
 	}
+	userInfo := *url.User
 	if password, hasPassword = userInfo.Password(); !hasPassword {
 		return nil, errors.New("mqtt url needs to have username and password")
 	}
@@ -54,7 +57,9 @@ func ConnectMqtt(url url.URL) (mqttClient *MqttClient, err error) {
 		SetAutoReconnect(true).
 		SetConnectRetry(true).
 		SetConnectionLostHandler(onConnectionLost).
-		SetOnConnectHandler(onConnect)
+		SetOnConnectHandler(onConnect).
+		SetPassword(password).
+		SetUsername(userInfo.Username())
 
 	if logrus.GetLevel() >= logrus.DebugLevel {
 		var messagePubHandler MQTT.MessageHandler = func(client MQTT.Client, msg MQTT.Message) {
@@ -69,37 +74,49 @@ func ConnectMqtt(url url.URL) (mqttClient *MqttClient, err error) {
 		return nil, eris.Wrapf(token.Error(), "failed to connect to %s", url.String())
 	}
 	mqttClient = &MqttClient{
-		client: client,
+		client:   client,
+		uniqueId: uniqueId,
+		prefix:   prefix,
 	}
+
 	return
 }
 
+func (mqttClient *MqttClient) SubscribeToHomeAssistantStatus() {
+	mqttClient.client.Subscribe("%s/status", 0, func(client MQTT.Client, msg MQTT.Message) {
+		if string(msg.Payload()) == "online" {
+			mqttClient.Available()
+			mqttClient.Discovery
+		}
+	})
+}
+
 // sendSensorData sends sensor data to Home Assistant
-func sendSensorData(client MQTT.Client, sensorID string, data map[string]interface{}) {
+func (client *MqttClient) SendSensorData(sensorStates []SensorState) {
 	discoveryPayload := DiscoveryMessage{
-		Name:                sensorID,
-		UniqueID:            sensorID,
-		StateTopic:          fmt.Sprintf("homeassistant/sensor/%s/state", sensorID),
-		AvailabilityTopic:   fmt.Sprintf("homeassistant/sensor/%s/availability", sensorID),
+		Name:                client.uniqueId,
+		UniqueID:            client.uniqueId,
+		StateTopic:          fmt.Sprintf("homeassistant/sensor/%s/state", client.uniqueId),
+		AvailabilityTopic:   fmt.Sprintf("homeassistant/sensor/%s/availability", client.uniqueId),
 		PayloadAvailable:    "online",
 		PayloadNotAvailable: "offline",
 		Device: Device{
-			Identifiers:  []string{sensorID},
-			Name:         "Golang MQTT Sensor",
+			Identifiers:  []string{client.uniqueId},
+			Name:         "duc2mqtt",
 			Model:        "Golang Model",
-			Manufacturer: "Golang Manufacturer",
+			Manufacturer: "SourceForgery AB",
 		},
 	}
 
 	// Send the discovery message once
-	sendMessage(client, fmt.Sprintf("homeassistant/sensor/%s/config", sensorID), discoveryPayload)
+	client.sendMessage(fmt.Sprintf("homeassistant/sensor/%s/config", client.uniqueId), discoveryPayload)
 
 	// Send sensor's availability status
-	sendMessage(client, fmt.Sprintf("homeassistant/sensor/%s/availability", sensorID), AvailabilityMessage{"online"})
+	client.sendMessage(fmt.Sprintf("homeassistant/sensor/%s/availability", client.uniqueId), AvailabilityMessage{"online"})
 
 	// Periodically send sensor data
-	for key, value := range data {
+	for key, value := range sensorStates {
 		sensorPayload := map[string]interface{}{key: value}
-		sendMessage(client, fmt.Sprintf("homeassistant/sensor/%s/state", sensorID), sensorPayload)
+		client.sendMessage(fmt.Sprintf("homeassistant/sensor/%s/state", client.uniqueId), sensorPayload)
 	}
 }
