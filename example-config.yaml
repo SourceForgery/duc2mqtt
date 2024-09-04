@@ -1,6 +1,5 @@
 mqtt:
   url: tcp://test.mosquitto.org:1883
+  uniqueId: duccer
 duc:
-  url: foo
-  password: bar
-  host: 192.168.0.0
+  url: http://foo:bar@192.168.0.0

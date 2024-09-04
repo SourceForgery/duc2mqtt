@@ -1,19 +1,36 @@
 package mqtt
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	MQTT "github.com/eclipse/paho.mqtt.golang"
 	"github.com/rotisserie/eris"
+	"github.com/sirupsen/logrus"
 	"net/url"
 )
 
 type MqttClient struct {
-	client *MQTT.Client
+	client MQTT.Client
 }
 
 func onConnectionLost(client MQTT.Client, err error) {
-	fmt.Println("Connection lost:", err)
+	logger().Infof("Connection lost: %v", err)
+}
+
+func (client *MqttClient) sendMessage(topic string, payload interface{}) {
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		logger().Fatalf("Failed to serialize payload to %s", topic)
+	}
+
+	token := client.client.Publish(topic, 0, false, payloadBytes)
+	token.Wait()
+	if token.Error() != nil {
+		logger().Errorf("Error publishing to topic %s: %v\n", topic, token.Error())
+	} else {
+		logger().Debugf("Message published to topic %s\n", topic)
+	}
 }
 
 func ConnectMqtt(url url.URL) (mqttClient *MqttClient, err error) {
@@ -28,19 +45,23 @@ func ConnectMqtt(url url.URL) (mqttClient *MqttClient, err error) {
 	}
 
 	url.User = nil
+
+	var onConnect MQTT.OnConnectHandler = func(client MQTT.Client) {
+		logger().Infof("MQTT connection established")
+	}
 	opts := MQTT.NewClientOptions().AddBroker(url.String()).
 		SetClientID("duc2mqtt").
 		SetAutoReconnect(true).
 		SetConnectRetry(true).
-		SetConnectionLostHandler(onConnectionLost)
+		SetConnectionLostHandler(onConnectionLost).
+		SetOnConnectHandler(onConnect)
 
-	// Define the message handler
-	var messagePubHandler MQTT.MessageHandler = func(client MQTT.Client, msg MQTT.Message) {
-		fmt.Printf("Received message: %s from topic: %s\n", msg.Payload(), msg.Topic())
+	if logrus.GetLevel() >= logrus.DebugLevel {
+		var messagePubHandler MQTT.MessageHandler = func(client MQTT.Client, msg MQTT.Message) {
+			logger().Debug("Received message: %s from topic: %s\n", msg.Payload(), msg.Topic())
+		}
+		opts.DefaultPublishHandler = messagePubHandler
 	}
-
-	// Assign the message handler
-	opts.SetDefaultPublishHandler(messagePubHandler)
 
 	// Create and start the client using the above options
 	client := MQTT.NewClient(opts)
@@ -50,6 +71,7 @@ func ConnectMqtt(url url.URL) (mqttClient *MqttClient, err error) {
 	mqttClient = &MqttClient{
 		client: client,
 	}
+	return
 }
 
 // sendSensorData sends sensor data to Home Assistant
