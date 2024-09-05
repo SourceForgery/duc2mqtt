@@ -2,6 +2,7 @@ package mqtt
 
 import (
 	"fmt"
+	MQTT "github.com/eclipse/paho.mqtt.golang"
 	"github.com/sirupsen/logrus"
 )
 
@@ -56,4 +57,13 @@ func (mqttClient *Client) SendSensorData(sensorStates map[string]SensorState) {
 		sensorPayload := map[string]interface{}{key: value}
 		mqttClient.sendMessage(fmt.Sprintf("homeassistant/sensor/%s/state", mqttClient.uniqueDeviceId), sensorPayload)
 	}
+}
+
+func (mqttClient *Client) SubscribeToHomeAssistantStatus() {
+	mqttClient.client.Subscribe("%s/status", 0, func(client MQTT.Client, msg MQTT.Message) {
+		if string(msg.Payload()) == "online" {
+			mqttClient.SendAvailability()
+			mqttClient.SendConfigurationData()
+		}
+	})
 }

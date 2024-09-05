@@ -81,12 +81,3 @@ func ConnectMqtt(url url.URL, uniqueId string, prefix string) (mqttClient *Clien
 
 	return
 }
-
-func (mqttClient *Client) SubscribeToHomeAssistantStatus() {
-	mqttClient.client.Subscribe("%s/status", 0, func(client MQTT.Client, msg MQTT.Message) {
-		if string(msg.Payload()) == "online" {
-			mqttClient.SendAvailability()
-			mqttClient.SendConfigurationData()
-		}
-	})
-}
