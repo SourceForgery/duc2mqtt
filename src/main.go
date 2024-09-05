@@ -63,6 +63,13 @@ func main() {
 		logrus.Fatal("Failed to connect to mqtt", err)
 	}
 
+	mqttClient.Device = mqtt.Device{
+		Identifiers:  [],
+		Name:         "",
+		Model:        "",
+		Manufacturer: "",
+	}
+
 	mqttClient.SubscribeStatus()
 
 	browse, err := client.Browse()

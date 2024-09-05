@@ -11,7 +11,7 @@ import (
 
 type Client struct {
 	client                  MQTT.Client
-	device                  *Device
+	Device                  *Device
 	uniqueDeviceId          string
 	SensorConfigurationData map[string]DiscoveryMessage
 	prefix                  string

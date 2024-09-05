@@ -19,9 +19,12 @@ type AvailabilityMessage struct {
 // DiscoveryMessage represents the discovery payload to be sent to Home Assistant.
 type DiscoveryMessage struct {
 	Name                string  `json:"name"`
-	UniqueID            string  `json:"unique_id"`
-	StateTopic          string  `json:"state_topic"`
-	AvailabilityTopic   string  `json:"availability_topic"`
+	UniqueID            string  `json:"unique_id"`      // The sensor id
+	StateTopic          string  `json:"state_topic"`    // Shared by all devices
+	CommandTopic        string  `json:"command_topic"`  // Not used by this device
+	ValueTemplate       string  `json:"value_template"` // Converts the sensor state payload to string, e.g. '{{ value_json.power_meter}}'
+	UnitOfMeasurement   string  `json:"unit_of_measurement"`
+	AvailabilityTopic   string  `json:"availability_topic"` // where the device says up/down
 	PayloadAvailable    string  `json:"payload_available"`
 	PayloadNotAvailable string  `json:"payload_not_available"`
 	Device              *Device `json:"device"`
@@ -44,10 +47,10 @@ func (mqttClient *Client) SendAvailability() {
 }
 
 func (mqttClient *Client) SendConfigurationData() {
+	uniqueId := mqttClient.Device.Identifiers[0]
 	for id, config := range mqttClient.SensorConfigurationData {
-		sensorID := fmt.Sprintf("%s/%s", mqttClient.uniqueDeviceId, id)
-		config.Device = mqttClient.device
-		mqttClient.sendMessage(fmt.Sprintf("homeassistant/sensor/%s/config", sensorID), config)
+		config.Device = mqttClient.Device
+		mqttClient.sendMessage(fmt.Sprintf("homeassistant/sensor/mqttClient.uniqueDeviceId/config", sensorID), config)
 	}
 }
 
