@@ -5,14 +5,13 @@ import (
 	"duc2mqtt/src/bastec"
 	"duc2mqtt/src/hassio"
 	"fmt"
+	"github.com/jessevdk/go-flags"
+	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v3"
 	"net/url"
 	"os"
 	"runtime/debug"
 	"time"
-
-	"github.com/jessevdk/go-flags"
-	"github.com/sirupsen/logrus"
 )
 
 // Config represents the YAML configuration structure.
@@ -31,7 +30,6 @@ type Config struct {
 func logger() *logrus.Entry {
 	return logrus.WithField("logger", "main")
 }
-
 
 func RemoveAuth(authedUrl url.URL) *url.URL {
 	authedUrl.User = url.UserPassword(authedUrl.User.Username(), "")
@@ -56,7 +54,28 @@ func main() {
 	}
 
 	config := parseConfig(opts)
+
 	initializeLogging(opts)
+
+	buildInfo, ok := debug.ReadBuildInfo()
+	if !ok {
+		logger().Fatal("Failed to read build info")
+	}
+
+	var vcsVersion string = "unknown"
+	for _, setting := range buildInfo.Settings {
+		if setting.Key == "vcs.revision" {
+			vcsVersion = setting.Value
+		}
+	}
+
+	if opts.Version {
+		logger().
+			WithField("vcsVersion", vcsVersion).
+			WithField("goVersion", buildInfo.GoVersion).
+			WithField("version", buildInfo.Main.Version).
+			Info("duc2mqtt version %s compiled with %s, commitId: %s", buildInfo.Main.Version, buildInfo.GoVersion, vcsVersion)
+	}
 
 	ducUrl, err := url.Parse(config.Duc.Url)
 	if err != nil {
@@ -77,17 +96,10 @@ func main() {
 		logger().WithError(err).Fatal("Failed to connect to mqtt", err)
 	}
 
-	buildInfo, ok := debug.ReadBuildInfo()
-	var swVersion string
-	if ok {
-		swVersion = buildInfo.Main.Version
-	} else {
-		swVersion = "unknown"
-	}
 	hassioClient.Device = &hassio.Device{
 		Identifiers:      []string{config.Mqtt.UniqueId},
 		Name:             config.Mqtt.Name,
-		SWVersion:        swVersion,
+		SWVersion:        buildInfo.Main.Version,
 		HWVersion:        "N/A",
 		SerialNumber:     "N/A",
 		Model:            "Duc2Mqtt ",
@@ -102,7 +114,12 @@ func main() {
 		logger().WithError(err).Fatal("Failed to subscribe to Home Assistant status: ", err)
 	}
 
+	first := true
 	for {
+		if !first {
+			time.Sleep(10 * time.Second)
+			first = false
+		}
 		var foo []string
 		for value := range hassioClient.SensorConfigurationData {
 			foo = append(foo, value)
@@ -110,6 +127,7 @@ func main() {
 		values, err := ducClient.GetValues(foo)
 		if err != nil {
 			logger().WithError(err).Fatal("Failed to get values: ", err)
+			continue
 		}
 		var valuesToSend map[string]string
 
@@ -119,9 +137,9 @@ func main() {
 		err = hassioClient.SendSensorData(valuesToSend)
 		if err != nil {
 			logger().WithError(err).Error("Failed to send sensor data: ", err)
+		} else {
+			logger().Infof("Successfully sent sensor data")
 		}
-
-		time.Sleep(10 * time.Second)
 	}
 }
 
@@ -161,6 +179,8 @@ func parseConfig(opts Options) Config {
 func initializeLogging(opts Options) {
 	// Set up logrus logging.
 	switch len(opts.Verbose) - len(opts.Quiet) {
+	case 2:
+		logrus.SetLevel(logrus.TraceLevel)
 	case 1:
 		logrus.SetLevel(logrus.DebugLevel)
 	case 0:

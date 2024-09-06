@@ -96,6 +96,7 @@ func Connect(url url.URL) (bastecClient *BastecClient, err error) {
 	query.Add("username", user)
 	requesterURL.RawQuery = query.Encode()
 	requesterURL.User = nil
+	logger().Debugf("connecting to bastec '%s'", requesterURL.String())
 	res, err := http.Get(requesterURL.String())
 	if err != nil {
 		return
@@ -154,6 +155,8 @@ func Connect(url url.URL) (bastecClient *BastecClient, err error) {
 	rpcURL := requesterURL
 	rpcURL.RawQuery = ""
 
+	logger().Infof("Connected to bastec duc '%s'", requesterURL.String())
+
 	bastecClient = &BastecClient{
 		sessionId:  sessionId,
 		RequestURL: rpcURL,
@@ -197,6 +200,9 @@ func (bastecClient *BastecClient) Browse() (valueResponse *BrowseResponse, err e
 	if logger().Logger.Level >= logrus.TraceLevel {
 		b, _ := json.MarshalIndent(browseResponse, "", "\t")
 		logger().Trace(string(b))
+	}
+	for _, point := range browseResponse.Result.Points {
+		logger().Debugf("Found sensor '%s' on device '%s' with ", browseResponse.Result.DevId, point.Pid)
 	}
 	return &browseResponse, nil
 }

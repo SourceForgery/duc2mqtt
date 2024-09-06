@@ -47,6 +47,9 @@ func ConnectMqtt(url url.URL, uniqueId string, prefix string) (hassioClient *Cli
 	if password, hasPassword = userInfo.Password(); !hasPassword {
 		return nil, errors.New("mqtt url needs to have username and password")
 	}
+	urlCopy := url
+	urlCopy.User = nil
+	logger().Debugf("Connecting to mqtt server '%s'", urlCopy.String())
 
 	url.User = nil
 
@@ -58,8 +61,16 @@ func ConnectMqtt(url url.URL, uniqueId string, prefix string) (hassioClient *Cli
 	var onConnect MQTT.OnConnectHandler = func(_ MQTT.Client) {
 		logger().Infof("MQTT connection established")
 		if hassioClient.Device != nil {
-			hassioClient.SendLastWill()
-			hassioClient.SendAvailability()
+			err := hassioClient.SendLastWill()
+			if err != nil {
+				logger().Errorf("Failed to write last will: %v", err)
+				return
+			}
+			err = hassioClient.SendAvailability()
+			if err != nil {
+				logger().Errorf("Failed to send availability: %v", err)
+				return
+			}
 		}
 	}
 	opts := MQTT.NewClientOptions().AddBroker(url.String()).
@@ -84,6 +95,8 @@ func ConnectMqtt(url url.URL, uniqueId string, prefix string) (hassioClient *Cli
 		return nil, eris.Wrapf(token.Error(), "failed to connect to %s", url.String())
 	}
 	hassioClient.client = client
+
+	logger().Infof("Connected to mqtt server '%s'", urlCopy.String())
 
 	return
 }
