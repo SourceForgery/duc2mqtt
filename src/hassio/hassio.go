@@ -77,22 +77,45 @@ func (hassioClient *Client) SendConfigurationData() (err error) {
 	return nil
 }
 
-func (hassioClient *Client) SendSensorData(sensorStates map[string]string) {
-	hassioClient.sendMessage(fmt.Sprintf("%s/sensor/%s/state", hassioClient.prefix, hassioClient.uniqueDeviceId), sensorStates)
+func (hassioClient *Client) SendSensorData(sensorStates map[string]string) (err error) {
+	err = hassioClient.sendMessage(fmt.Sprintf("%s/sensor/%s/state", hassioClient.prefix, hassioClient.uniqueDeviceId), sensorStates)
+	if err != nil {
+		return eris.Wrap(err, "Couldn't send sensor state\n")
+	}
+	return
 }
 
-func (hassioClient *Client) SendLastWill() {
-	hassioClient.client.Publish(fmt.Sprintf("%s/sensor/%s/availability", hassioClient.prefix, hassioClient.uniqueDeviceId), 0, true, "offline")
+func (hassioClient *Client) SendLastWill() (err error) {
+	token := hassioClient.client.Publish(fmt.Sprintf("%s/sensor/%s/availability", hassioClient.prefix, hassioClient.uniqueDeviceId), 0, true, "offline")
+	if err = token.Error(); err != nil {
+		return eris.Wrap(err, "Couldn't send last will message\n")
+	}
+	return
 }
 
-func (hassioClient *Client) SubscribeToHomeAssistantStatus() {
-	hassioClient.SendAvailability()
-	hassioClient.SendLastWill()
-	hassioClient.SendConfigurationData()
-	hassioClient.client.Subscribe("%s/status", 0, func(client MQTT.Client, msg MQTT.Message) {
-		if string(msg.Payload()) == "online" {
-			hassioClient.SendAvailability()
-			hassioClient.SendConfigurationData()
-		}
-	})
+func (hassioClient *Client) SubscribeToHomeAssistantStatus() (err error) {
+	err = hassioClient.SendAvailability()
+	if err == nil {
+		err = hassioClient.SendLastWill()
+	}
+	if err != nil {
+		err = hassioClient.SendLastWill()
+	}
+	if err == nil {
+		err = hassioClient.client.Subscribe("%s/status", 0, func(client MQTT.Client, msg MQTT.Message) {
+			if string(msg.Payload()) == "online" {
+				if err := hassioClient.SendAvailability(); err != nil {
+					logger().WithError(err).Errorf("Failed to subscribe to Home Assistant status: %s\n", err)
+				}
+
+				if err := hassioClient.SendConfigurationData(); err != nil {
+					logger().WithError(err).Errorf("Failed to subscribe to Home Assistant status: %s\n", err)
+				}
+			}
+		}).Error()
+	}
+	if err != nil {
+		return eris.Wrap(err, "Couldn't subscribe to Home Assistant status\n")
+	}
+	return
 }

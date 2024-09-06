@@ -16,7 +16,9 @@ import (
 	"strings"
 )
 
-var logger = logrus.WithField("logger", "bastec")
+func logger() *logrus.Entry {
+	return logrus.WithField("logger", "bastec")
+}
 
 type Salts struct {
 	SaltA []byte `json:"salt_a"`
@@ -192,9 +194,9 @@ func (bastecClient *BastecClient) Browse() (valueResponse *BrowseResponse, err e
 		return nil, eris.Wrapf(err, "failed to parse json")
 	}
 
-	if logger.Level >= logrus.TraceLevel {
+	if logger().Logger.Level >= logrus.TraceLevel {
 		b, _ := json.MarshalIndent(browseResponse, "", "\t")
-		logger.Trace(string(b))
+		logger().Trace(string(b))
 	}
 	return &browseResponse, nil
 }
@@ -214,7 +216,7 @@ func (bastecClient *BastecClient) GetValues(values []string) (response *ValuesRe
 	if err != nil {
 		return nil, eris.Wrapf(err, "failed GetValues jsonRpc request")
 	}
-	logger.Debug(string(jsonResponse))
+	logger().Debug(string(jsonResponse))
 	err = json.Unmarshal(jsonResponse, &response)
 	if err != nil {
 		return
@@ -225,14 +227,14 @@ func (bastecClient *BastecClient) GetValues(values []string) (response *ValuesRe
 func (bastecClient *BastecClient) jsonRpc(request JsonRpcRequest) (body []byte, err error) {
 	jsonBody, err := json.Marshal(request)
 	if err != nil {
-		logger.Fatal(eris.Wrapf(err, "failed to create json request"))
+		logger().WithError(err).Fatal(eris.Wrapf(err, "failed to create json request"))
 	}
 	log.Println(string(jsonBody))
 	reader := bytes.NewReader(jsonBody)
 	requestUrl := bastecClient.RequestURL.String()
 	req, err := http.NewRequest(http.MethodPost, requestUrl, reader)
 	if err != nil {
-		logger.Fatal(eris.Wrapf(err, "failed to create new request"))
+		logger().WithError(eris.Wrapf(err, "failed to create new request")).Error("failed to create new request")
 	}
 	req.Header.Add("Content-Type", "application/json")
 	req.Header.Add("Cookie", fmt.Sprintf("SESSION_ID=%s", bastecClient.sessionId))

@@ -28,6 +28,11 @@ type Config struct {
 	}
 }
 
+func logger() *logrus.Entry {
+	return logrus.WithField("logger", "main")
+}
+
+
 func RemoveAuth(authedUrl url.URL) *url.URL {
 	authedUrl.User = url.UserPassword(authedUrl.User.Username(), "")
 	return &authedUrl
@@ -47,7 +52,7 @@ func main() {
 	// Parse command-line options.
 	_, err := flags.Parse(&opts)
 	if err != nil {
-		logrus.Fatal("Failed to parse command-line options: ", err)
+		logger().WithError(err).Fatal("Failed to parse command-line options: ", err)
 	}
 
 	config := parseConfig(opts)
@@ -55,21 +60,21 @@ func main() {
 
 	ducUrl, err := url.Parse(config.Duc.Url)
 	if err != nil {
-		logrus.Fatal("Failed to parse DUC URL: ", err)
+		logger().WithError(err).Fatal("Failed to parse DUC URL: ", err)
 	}
 	ducClient, err := bastec.Connect(*ducUrl)
 	if err != nil {
-		logrus.Fatal("Failed to connect to DUC: ", err)
+		logger().WithError(err).Fatal("Failed to connect to DUC: ", err)
 	}
 
 	mqttUrl, err := url.Parse(config.Mqtt.Url)
 	if err != nil {
-		logrus.Fatal("Failed to parse mqtt url", err)
+		logger().WithError(err).Fatal("Failed to parse mqtt url", err)
 	}
 
 	hassioClient, err := hassio.ConnectMqtt(*mqttUrl, config.Mqtt.UniqueId, config.Mqtt.topicPrefix)
 	if err != nil {
-		logrus.Fatal("Failed to connect to mqtt", err)
+		logger().WithError(err).Fatal("Failed to connect to mqtt", err)
 	}
 
 	buildInfo, ok := debug.ReadBuildInfo()
@@ -92,7 +97,10 @@ func main() {
 	}
 
 	hassioClient.SensorConfigurationData = updateHassioDeviceConfig(ducClient)
-	hassioClient.SubscribeToHomeAssistantStatus()
+	err = hassioClient.SubscribeToHomeAssistantStatus()
+	if err != nil {
+		logger().WithError(err).Fatal("Failed to subscribe to Home Assistant status: ", err)
+	}
 
 	for {
 		var foo []string
@@ -101,14 +109,17 @@ func main() {
 		}
 		values, err := ducClient.GetValues(foo)
 		if err != nil {
-			logrus.Fatal("Failed to get values: ", err)
+			logger().WithError(err).Fatal("Failed to get values: ", err)
 		}
 		var valuesToSend map[string]string
 
 		for _, point := range values.Result.Points {
 			valuesToSend[point.Pid] = fmt.Sprintf("%.0f", point.Value)
 		}
-		hassioClient.SendSensorData(valuesToSend)
+		err = hassioClient.SendSensorData(valuesToSend)
+		if err != nil {
+			logger().WithError(err).Error("Failed to send sensor data: ", err)
+		}
 
 		time.Sleep(10 * time.Second)
 	}
@@ -117,7 +128,7 @@ func main() {
 func updateHassioDeviceConfig(ducClient *bastec.BastecClient) map[string]hassio.SensorConfig {
 	browse, err := ducClient.Browse()
 	if err != nil {
-		logrus.Errorf("Failed to browse: %v", err)
+		logger().WithError(err).Errorf("Failed to browse: %v", err)
 	}
 
 	sensorConfigs := map[string]hassio.SensorConfig{}
@@ -136,13 +147,13 @@ func parseConfig(opts Options) Config {
 	// Load configuration from YAML file.
 	configData, err := os.ReadFile(opts.ConfigFile)
 	if err != nil {
-		logrus.Fatal("Failed to read configuration file: ", err)
+		logger().WithError(err).Fatal("Failed to read configuration file: ", err)
 	}
 
 	var config Config
 	err = yaml.Unmarshal(configData, &config)
 	if err != nil {
-		logrus.Fatal("Failed to parse configuration file: ", err)
+		logger().WithError(err).Fatal("Failed to parse configuration file: ", err)
 	}
 	return config
 }

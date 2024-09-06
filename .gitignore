@@ -1,1 +1,4 @@
 /.idea/
+/.go/wrapper/
+config.yaml
+duc2mqtt
