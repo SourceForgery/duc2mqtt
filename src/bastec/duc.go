@@ -23,6 +23,7 @@ type Salts struct {
 	SaltB []byte `json:"salt_b"`
 }
 
+//goland:noinspection GoNameStartsWithPackageName
 type BastecClient struct {
 	sessionId  string
 	RequestURL url.URL
@@ -38,14 +39,14 @@ type Session struct {
 type BrowseResponse struct {
 	JsonRpc string `json:"json-rpc"`
 	Result  struct {
-		Devid  string `json:"devid"`
+		DevId  string `json:"devid"`
 		Points []struct {
 			Pid           string `json:"pid"`
 			Desc          string `json:"desc"`
 			Acc           string `json:"acc"`
 			Type          string `json:"type"`
 			DecimalsShown string `json:"decimals_shown,omitempty"`
-			Decimals      string `json:"decimals,omitempty"`
+			Decimals      int    `json:"decimals,omitempty"`
 			Attr          string `json:"attr,omitempty"`
 		} `json:"points"`
 	} `json:"result"`

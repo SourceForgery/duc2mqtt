@@ -1,4 +1,4 @@
-package mqtt
+package hassio
 
 import (
 	"encoding/json"
@@ -12,31 +12,32 @@ import (
 type Client struct {
 	client                  MQTT.Client
 	Device                  *Device
-	uniqueDeviceId          string
-	SensorConfigurationData map[string]DiscoveryMessage
+	uniqueDeviceId          string // optional. Duc's is used if not set
+	SensorConfigurationData map[string]SensorConfig
 	prefix                  string
 }
 
-func onConnectionLost(client MQTT.Client, err error) {
+func onConnectionLost(_ MQTT.Client, err error) {
 	logger().Infof("Connection lost: %v", err)
 }
 
-func (mqttClient *Client) sendMessage(topic string, payload interface{}) {
+func (hassioClient *Client) sendMessage(topic string, payload interface{}) (err error) {
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
 		logger().Fatalf("Failed to serialize payload to %s", topic)
 	}
 
-	token := mqttClient.client.Publish(topic, 0, false, payloadBytes)
+	token := hassioClient.client.Publish(topic, 0, false, payloadBytes)
 	token.Wait()
 	if token.Error() != nil {
-		logger().Errorf("Error publishing to topic %s: %v\n", topic, token.Error())
+		return eris.Wrapf(token.Error(), "Error publishing to topic %s\n", topic)
 	} else {
 		logger().Debugf("Message published to topic %s\n", topic)
 	}
+	return nil
 }
 
-func ConnectMqtt(url url.URL, uniqueId string, prefix string) (mqttClient *Client, err error) {
+func ConnectMqtt(url url.URL, uniqueId string, prefix string) (hassioClient *Client, err error) {
 	var password string
 	var hasPassword bool
 	if url.User == nil {
@@ -49,8 +50,17 @@ func ConnectMqtt(url url.URL, uniqueId string, prefix string) (mqttClient *Clien
 
 	url.User = nil
 
-	var onConnect MQTT.OnConnectHandler = func(client MQTT.Client) {
+	hassioClient = &Client{
+		uniqueDeviceId: uniqueId,
+		prefix:         prefix,
+	}
+
+	var onConnect MQTT.OnConnectHandler = func(_ MQTT.Client) {
 		logger().Infof("MQTT connection established")
+		if hassioClient.Device != nil {
+			hassioClient.SendLastWill()
+			hassioClient.SendAvailability()
+		}
 	}
 	opts := MQTT.NewClientOptions().AddBroker(url.String()).
 		SetClientID("duc2mqtt").
@@ -73,11 +83,7 @@ func ConnectMqtt(url url.URL, uniqueId string, prefix string) (mqttClient *Clien
 	if token := client.Connect(); token.Wait() && token.Error() != nil {
 		return nil, eris.Wrapf(token.Error(), "failed to connect to %s", url.String())
 	}
-	mqttClient = &Client{
-		client:         client,
-		uniqueDeviceId: uniqueId,
-		prefix:         prefix,
-	}
+	hassioClient.client = client
 
 	return
 }
