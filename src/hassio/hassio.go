@@ -98,9 +98,6 @@ func (hassioClient *Client) SubscribeToHomeAssistantStatus() (err error) {
 	if err == nil {
 		err = hassioClient.SendLastWill()
 	}
-	if err != nil {
-		err = hassioClient.SendLastWill()
-	}
 	if err == nil {
 		err = hassioClient.client.Subscribe("%s/status", 0, func(client MQTT.Client, msg MQTT.Message) {
 			if string(msg.Payload()) == "online" {

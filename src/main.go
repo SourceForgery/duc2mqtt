@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"runtime/debug"
+	"strings"
 	"time"
 )
 
@@ -50,7 +51,9 @@ func main() {
 	// Parse command-line options.
 	_, err := flags.Parse(&opts)
 	if err != nil {
-		logger().WithError(err).Fatal("Failed to parse command-line options: ", err)
+		logger().
+			WithError(err).
+			Fatal("Failed to parse command-line options")
 	}
 
 	config := parseConfig(opts)
@@ -62,7 +65,7 @@ func main() {
 		logger().Fatal("Failed to read build info")
 	}
 
-	var vcsVersion string = "unknown"
+	var vcsVersion = "unknown"
 	for _, setting := range buildInfo.Settings {
 		if setting.Key == "vcs.revision" {
 			vcsVersion = setting.Value
@@ -102,7 +105,7 @@ func main() {
 		SWVersion:        buildInfo.Main.Version,
 		HWVersion:        "N/A",
 		SerialNumber:     "N/A",
-		Model:            "Duc2Mqtt ",
+		Model:            "Duc2Mqtt",
 		ModelID:          "Duc2Mqtt",
 		Manufacturer:     "SourceForgery",
 		ConfigurationURL: fmt.Sprintf("http://%s/config", ducUrl.String()),
@@ -151,6 +154,11 @@ func updateHassioDeviceConfig(ducClient *bastec.BastecClient) map[string]hassio.
 
 	sensorConfigs := map[string]hassio.SensorConfig{}
 	for _, point := range browse.Result.Points {
+		if strings.HasPrefix(point.Pid, "1.al.") || strings.HasPrefix(point.Pid, "1.am.") {
+			logger().Debugf("Skipping sensor %s: %s", point.Pid, point.Desc)
+			continue
+		}
+		logger().Infof("Found sensor %s: %s", point.Pid, point.Desc)
 		sensorConfigs[point.Pid] = hassio.SensorConfig{
 			DeviceClass:       "sensor",
 			Name:              point.Desc,

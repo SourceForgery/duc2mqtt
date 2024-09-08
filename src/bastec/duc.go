@@ -3,6 +3,7 @@ package bastec
 import (
 	"bytes"
 	"crypto/md5"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -10,7 +11,6 @@ import (
 	"github.com/rotisserie/eris"
 	"github.com/sirupsen/logrus"
 	"io"
-	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -29,6 +29,7 @@ type Salts struct {
 type BastecClient struct {
 	sessionId  string
 	RequestURL url.URL
+	serial     int
 }
 
 type Session struct {
@@ -75,7 +76,7 @@ type ValuesResponse struct {
 type JsonRpcRequest struct {
 	JsonRpcVersion string     `json:"json-rpc"`
 	Method         string     `json:"method"`
-	Params         [][]string `json:"params"`
+	Params         [][]string `json:"params,omitempty"`
 	Id             int        `json:"id"`
 }
 
@@ -89,7 +90,7 @@ func Connect(url url.URL) (bastecClient *BastecClient, err error) {
 	if _, hasPassword := url.User.Password(); !hasPassword {
 		return nil, errors.New("missing password in url")
 	}
-	user := url.User.Username()
+	user := strings.ToUpper(url.User.Username())
 	password, _ := url.User.Password()
 	requesterURL := *url.JoinPath("if/login.js")
 	query := requesterURL.Query()
@@ -123,6 +124,7 @@ func Connect(url url.URL) (bastecClient *BastecClient, err error) {
 	x.Add("hash", hash)
 	loginUrl.RawQuery = x.Encode()
 	loginResponse, err := http.Get(loginUrl.String())
+	logger().Trace("loginUrl: ", loginUrl.String())
 	if err != nil {
 		return
 	}
@@ -136,10 +138,16 @@ func Connect(url url.URL) (bastecClient *BastecClient, err error) {
 		return
 	}
 
+	logger().Trace("login response body: ", string(loginBody))
+
 	var session Session
 	err = json.Unmarshal(loginBody, &session)
 	if err != nil {
 		return
+	}
+
+	if session.UserId == "" {
+		return nil, errors.New(fmt.Sprintf("login failed: %s", string(loginBody)))
 	}
 
 	var sessionId string
@@ -153,6 +161,7 @@ func Connect(url url.URL) (bastecClient *BastecClient, err error) {
 	}
 
 	rpcURL := requesterURL
+	rpcURL.Path = "if/json_rpc.js"
 	rpcURL.RawQuery = ""
 
 	logger().Infof("Connected to bastec duc '%s'", requesterURL.String())
@@ -168,7 +177,6 @@ func (bastecClient *BastecClient) GetVersion() (response []byte, err error) {
 	var rpcRequest = JsonRpcRequest{
 		JsonRpcVersion: "2.0",
 		Method:         "pdb.version",
-		Id:             1,
 	}
 
 	response, err = bastecClient.jsonRpc(rpcRequest)
@@ -183,7 +191,6 @@ func (bastecClient *BastecClient) Browse() (valueResponse *BrowseResponse, err e
 	var rpcRequest = JsonRpcRequest{
 		JsonRpcVersion: "2.0",
 		Method:         "pdb.browse",
-		Id:             2,
 	}
 
 	response, err := bastecClient.jsonRpc(rpcRequest)
@@ -215,7 +222,6 @@ func (bastecClient *BastecClient) GetValues(values []string) (response *ValuesRe
 		JsonRpcVersion: "2.0",
 		Method:         "pdb.getvalue",
 		Params:         params,
-		Id:             3,
 	}
 
 	jsonResponse, err := bastecClient.jsonRpc(rpcRequest)
@@ -231,16 +237,25 @@ func (bastecClient *BastecClient) GetValues(values []string) (response *ValuesRe
 }
 
 func (bastecClient *BastecClient) jsonRpc(request JsonRpcRequest) (body []byte, err error) {
+	bastecClient.serial++
+	request.Id = bastecClient.serial
 	jsonBody, err := json.Marshal(request)
 	if err != nil {
 		logger().WithError(err).Fatal(eris.Wrapf(err, "failed to create json request"))
 	}
-	log.Println(string(jsonBody))
+	//iso8859RequestBody, _, err := transform.Bytes(charmap.ISO8859_1.NewEncoder(), jsonBody)
+	//if err != nil {
+	//	err = eris.Wrapf(err, "failed to transform json request to iso8859_1")
+	//	return
+	//}
 	reader := bytes.NewReader(jsonBody)
+	logger().Trace("jsonRpc request body: ", string(jsonBody))
 	requestUrl := bastecClient.RequestURL.String()
 	req, err := http.NewRequest(http.MethodPost, requestUrl, reader)
 	if err != nil {
-		logger().WithError(eris.Wrapf(err, "failed to create new request")).Error("failed to create new request")
+		logger().
+			WithError(eris.Wrapf(err, "failed to create new request")).
+			Error("failed to create new request")
 	}
 	req.Header.Add("Content-Type", "application/json")
 	req.Header.Add("Cookie", fmt.Sprintf("SESSION_ID=%s", bastecClient.sessionId))
@@ -252,7 +267,20 @@ func (bastecClient *BastecClient) jsonRpc(request JsonRpcRequest) (body []byte, 
 	if res.StatusCode != 200 {
 		return nil, errors.New(fmt.Sprintf("http error code %d", res.StatusCode))
 	}
-	body, err = io.ReadAll(res.Body)
+	responseBody, err := io.ReadAll(res.Body)
+	//iso8859ResponseBody, err := io.ReadAll(res.Body)
+	if err != nil {
+		err = eris.Wrapf(err, "failed to read response body")
+		return
+	}
+	logger().Trace(base64.StdEncoding.EncodeToString(responseBody))
+	//body, _, err = transform.Bytes(charmap.ISO8859_1.NewDecoder(), responseBody)
+	//if err != nil {
+	//	err = eris.Wrapf(err, "failed to transform json request to iso8859_1")
+	//	return
+	//}
+	body = responseBody
+	logger().Trace("jsonRpc response body: ", string(body))
 	return
 }
 
