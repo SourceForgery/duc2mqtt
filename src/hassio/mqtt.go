@@ -57,6 +57,9 @@ func ConnectMqtt(url url.URL, uniqueId string, prefix string) (hassioClient *Cli
 		uniqueDeviceId: uniqueId,
 		prefix:         prefix,
 	}
+	if prefix == "" {
+		hassioClient.prefix = "homeassistant"
+	}
 
 	var onConnect MQTT.OnConnectHandler = func(_ MQTT.Client) {
 		logger().Infof("MQTT connection established")

@@ -121,8 +121,8 @@ func main() {
 	for {
 		if !first {
 			time.Sleep(10 * time.Second)
-			first = false
 		}
+		first = false
 		var foo []string
 		for value := range hassioClient.SensorConfigurationData {
 			foo = append(foo, value)
@@ -132,7 +132,7 @@ func main() {
 			logger().WithError(err).Fatal("Failed to get values: ", err)
 			continue
 		}
-		var valuesToSend map[string]string
+		valuesToSend := make(map[string]string)
 
 		for _, point := range values.Result.Points {
 			valuesToSend[point.Pid] = fmt.Sprintf("%.0f", point.Value)
