@@ -37,15 +37,19 @@ func (hassioClient *Client) sendMessage(topic string, payload interface{}) (err 
 	return nil
 }
 
-func ConnectMqtt(url url.URL, uniqueId string, prefix string) (hassioClient *Client, err error) {
+func ConnectMqtt(url url.URL, amqpVhost string, uniqueId string, prefix string) (hassioClient *Client, err error) {
 	var password string
 	var hasPassword bool
 	if url.User == nil {
 		return nil, errors.New("mqtt url needs to have username and password")
 	}
 	userInfo := *url.User
+	userName := userInfo.Username()
 	if password, hasPassword = userInfo.Password(); !hasPassword {
 		return nil, errors.New("mqtt url needs to have username and password")
+	}
+	if amqpVhost != "" {
+		userName = amqpVhost + ":" + userName
 	}
 	urlCopy := url
 	urlCopy.User = nil
@@ -83,7 +87,7 @@ func ConnectMqtt(url url.URL, uniqueId string, prefix string) (hassioClient *Cli
 		SetConnectionLostHandler(onConnectionLost).
 		SetOnConnectHandler(onConnect).
 		SetPassword(password).
-		SetUsername(userInfo.Username())
+		SetUsername(userName)
 
 	if logrus.GetLevel() >= logrus.DebugLevel {
 		var messagePubHandler MQTT.MessageHandler = func(client MQTT.Client, msg MQTT.Message) {

@@ -20,12 +20,15 @@ type Config struct {
 	Mqtt struct {
 		Url         string `yaml:"url"`
 		UniqueId    string `yaml:"uniqueId"`
-		topicPrefix string `yaml:"topicPrefix"`
+		TopicPrefix string `yaml:"topicPrefix"`
+		AmqpVhost   string `yaml:"amqpVhost"`
 		Name        string `yaml:"name"`
 	} `yaml:"mqtt"`
 	Duc struct {
-		Url string `yaml:"url"`
+		Url                string   `yaml:"url"`
+		DisallowedPrefixes []string `yaml:"disallowedPrefixes"`
 	}
+	IntervalSeconds int64 `yaml:"IntervalSeconds"`
 }
 
 func logger() *logrus.Entry {
@@ -89,12 +92,14 @@ func main() {
 		logger().WithError(err).Fatal("Failed to connect to DUC: ", err)
 	}
 
+	ducClient.DisallowedPrefixes = config.Duc.DisallowedPrefixes
+
 	mqttUrl, err := url.Parse(config.Mqtt.Url)
 	if err != nil {
 		logger().WithError(err).Fatal("Failed to parse mqtt url", err)
 	}
 
-	hassioClient, err := hassio.ConnectMqtt(*mqttUrl, config.Mqtt.UniqueId, config.Mqtt.topicPrefix)
+	hassioClient, err := hassio.ConnectMqtt(*mqttUrl, config.Mqtt.AmqpVhost, config.Mqtt.UniqueId, config.Mqtt.TopicPrefix)
 	if err != nil {
 		logger().WithError(err).Fatal("Failed to connect to mqtt", err)
 	}
@@ -117,10 +122,14 @@ func main() {
 		logger().WithError(err).Fatal("Failed to subscribe to Home Assistant status: ", err)
 	}
 
+	config.publishValuesLoop(hassioClient, ducClient)
+}
+
+func (config *Config) publishValuesLoop(hassioClient *hassio.Client, ducClient *bastec.BastecClient) {
 	first := true
 	for {
 		if !first {
-			time.Sleep(10 * time.Second)
+			time.Sleep(time.Duration(config.IntervalSeconds) * time.Second)
 		}
 		first = false
 		var foo []string
@@ -153,13 +162,18 @@ func updateHassioDeviceConfig(ducClient *bastec.BastecClient) map[string]hassio.
 	}
 
 	sensorConfigs := map[string]hassio.SensorConfig{}
+device:
 	for _, point := range browse.Result.Points {
-		if strings.HasPrefix(point.Pid, "1.al.") || strings.HasPrefix(point.Pid, "1.am.") {
-			logger().Debugf("Skipping sensor %s: %s", point.Pid, point.Desc)
-			continue
+
+		for _, prefix := range ducClient.DisallowedPrefixes {
+			if strings.HasPrefix(point.Pid, prefix) {
+				logger().Debugf("Skipping sensor %s: %s", point.Pid, point.Desc)
+				continue device
+			}
 		}
-		logger().Infof("Found sensor %s: %s", point.Pid, point.Desc)
-		sensorConfigs[point.Pid] = hassio.SensorConfig{
+		renamedTo := strings.ReplaceAll(point.Pid, ".", "_")
+		logger().Infof("Found sensor %s(converted to %s): %s", point.Pid, renamedTo, point.Desc)
+		sensorConfigs[renamedTo] = hassio.SensorConfig{
 			DeviceClass:       "sensor",
 			Name:              point.Desc,
 			UnitOfMeasurement: point.Type,
@@ -180,6 +194,10 @@ func parseConfig(opts Options) Config {
 	err = yaml.Unmarshal(configData, &config)
 	if err != nil {
 		logger().WithError(err).Fatal("Failed to parse configuration file: ", err)
+	}
+
+	if config.IntervalSeconds == 0 {
+		config.IntervalSeconds = 10
 	}
 	return config
 }

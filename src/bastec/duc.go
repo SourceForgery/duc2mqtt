@@ -3,7 +3,6 @@ package bastec
 import (
 	"bytes"
 	"crypto/md5"
-	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -27,9 +26,10 @@ type Salts struct {
 
 //goland:noinspection GoNameStartsWithPackageName
 type BastecClient struct {
-	sessionId  string
-	RequestURL url.URL
-	serial     int
+	sessionId          string
+	RequestURL         url.URL
+	serial             int
+	DisallowedPrefixes []string
 }
 
 type Session struct {
@@ -69,8 +69,8 @@ type ValuesResponse struct {
 			DecimalsShown int     `json:"decimals_shown"`
 		} `json:"points"`
 	} `json:"result"`
-	Error interface{} `json:"error"`
-	Id    int         `json:"id"`
+	Error string `json:"error"`
+	Id    int    `json:"id"`
 }
 
 type JsonRpcRequest struct {
@@ -209,8 +209,12 @@ func (bastecClient *BastecClient) Browse() (valueResponse *BrowseResponse, err e
 		logger().Trace(string(b))
 	}
 	for _, point := range browseResponse.Result.Points {
-		logger().Debugf("Found sensor '%s' on device '%s' with ", browseResponse.Result.DevId, point.Pid)
+		logger().Debugf("Found sensor '%s' on device '%s' with ", point.Pid, browseResponse.Result.DevId)
 	}
+	if browseResponse.Error != "" {
+		err = errors.New(fmt.Sprintf("browse error: %s", browseResponse.Error))
+	}
+
 	return &browseResponse, nil
 }
 
@@ -233,23 +237,23 @@ func (bastecClient *BastecClient) GetValues(values []string) (response *ValuesRe
 	if err != nil {
 		return
 	}
+	if response.Error != "" {
+		err = errors.New(fmt.Sprintf("getValues error: %s", response.Error))
+	}
 	return
 }
 
 func (bastecClient *BastecClient) jsonRpc(request JsonRpcRequest) (body []byte, err error) {
 	bastecClient.serial++
 	request.Id = bastecClient.serial
+
 	jsonBody, err := json.Marshal(request)
 	if err != nil {
 		logger().WithError(err).Fatal(eris.Wrapf(err, "failed to create json request"))
 	}
-	//iso8859RequestBody, _, err := transform.Bytes(charmap.ISO8859_1.NewEncoder(), jsonBody)
-	//if err != nil {
-	//	err = eris.Wrapf(err, "failed to transform json request to iso8859_1")
-	//	return
-	//}
 	reader := bytes.NewReader(jsonBody)
 	logger().Trace("jsonRpc request body: ", string(jsonBody))
+
 	requestUrl := bastecClient.RequestURL.String()
 	req, err := http.NewRequest(http.MethodPost, requestUrl, reader)
 	if err != nil {
@@ -268,17 +272,11 @@ func (bastecClient *BastecClient) jsonRpc(request JsonRpcRequest) (body []byte, 
 		return nil, errors.New(fmt.Sprintf("http error code %d", res.StatusCode))
 	}
 	responseBody, err := io.ReadAll(res.Body)
-	//iso8859ResponseBody, err := io.ReadAll(res.Body)
+
 	if err != nil {
 		err = eris.Wrapf(err, "failed to read response body")
 		return
 	}
-	logger().Trace(base64.StdEncoding.EncodeToString(responseBody))
-	//body, _, err = transform.Bytes(charmap.ISO8859_1.NewDecoder(), responseBody)
-	//if err != nil {
-	//	err = eris.Wrapf(err, "failed to transform json request to iso8859_1")
-	//	return
-	//}
 	body = responseBody
 	logger().Trace("jsonRpc response body: ", string(body))
 	return
