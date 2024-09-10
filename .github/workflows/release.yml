@@ -1,0 +1,55 @@
+name: Create Release
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on:
+      - Linux
+      - X64
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup go
+        uses: actions/setup-go@v5
+        with:
+          cache: false
+          go-version-file: ./go.mod
+
+      - name: Release a new version
+        id: tag_version
+        uses: mathieudutour/github-tag-action@v6.2
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build application
+        env:
+          GOOS: linux
+          GOARCH: amd64
+          CGO_ENABLED: "0"
+        run: |
+          go build -o duc2mqtt ./src/
+
+      - name: Build docker application
+        run: |
+          set -eu
+          tmpDir=$(mktemp -d)
+          cp -p .github/workflows/Dockerfile.release $tmpDir/Dockerfile
+          cp -p duc2mqtt $tmpDir/
+          docker build -t sourceforgery/duc2mqtt:latest $tmpDir
+          docker tag sourceforgery/duc2mqtt:latest sourceforgery/duc2mqtt:${{ steps.tag_version.outputs.new_tag }}
+          docker push sourceforgery/duc2mqtt:latest
+          docker push sourceforgery/duc2mqtt:${{ steps.tag_version.outputs.new_tag }}
+
+      - name: Create Release
+        id: create_release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: ${{ steps.tag_version.outputs.new_tag }}
+          name: Release ${{ steps.tag_version.outputs.new_tag }}
+          body: ${{ steps.tag_version.outputs.changelog }}
+          artifacts: "duc2mqtt"
+          artifactContentType: "application/octet-stream"

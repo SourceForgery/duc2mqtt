@@ -1,0 +1,4 @@
+FROM scratch
+COPY ./duc2mqtt /duc2mqtt
+CMD [ "/duc2mqtt" ]
+
