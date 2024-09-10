@@ -95,7 +95,7 @@ func ConnectMqtt(url url.URL, amqpVhost string, uniqueId string, prefix string) 
 
 	if logrus.GetLevel() >= logrus.DebugLevel {
 		var messagePubHandler MQTT.MessageHandler = func(client MQTT.Client, msg MQTT.Message) {
-			logger().Debug("Received message: %s from topic: %s\n", string(msg.Payload()), msg.Topic())
+			logger().Debugf("Received message: %s from topic: %s\n", string(msg.Payload()), msg.Topic())
 		}
 		opts.DefaultPublishHandler = messagePubHandler
 	}
