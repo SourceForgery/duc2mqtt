@@ -2,6 +2,6 @@ version: '3.8'
 
 services:
   my_running_service:
-    image: duc2mqtt
+    image: sourceforgery/duc2mqtt:latest
     container_name: duc2mqtt
     restart: always

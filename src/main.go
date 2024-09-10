@@ -21,7 +21,6 @@ type Config struct {
 		Url         string `yaml:"url"`
 		UniqueId    string `yaml:"uniqueId"`
 		TopicPrefix string `yaml:"topicPrefix"`
-		AmqpVhost   string `yaml:"amqpVhost"`
 		Name        string `yaml:"name"`
 	} `yaml:"mqtt"`
 	Duc struct {
@@ -100,7 +99,8 @@ func main() {
 		logger().WithError(err).Fatal("Failed to parse mqtt url", err)
 	}
 
-	hassioClient, err := hassio.ConnectMqtt(*mqttUrl, config.Mqtt.AmqpVhost, config.Mqtt.UniqueId, config.Mqtt.TopicPrefix)
+	amqpVhost := strings.TrimPrefix(mqttUrl.Path, "/")
+	hassioClient, err := hassio.ConnectMqtt(*mqttUrl, amqpVhost, config.Mqtt.UniqueId, config.Mqtt.TopicPrefix)
 	if err != nil {
 		logger().WithError(err).Fatal("Failed to connect to mqtt", err)
 	}
