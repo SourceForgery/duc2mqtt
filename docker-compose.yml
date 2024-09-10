@@ -1,0 +1,7 @@
+version: '3.8'
+
+services:
+  my_running_service:
+    image: duc2mqtt
+    container_name: duc2mqtt
+    restart: always

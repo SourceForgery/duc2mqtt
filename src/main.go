@@ -81,7 +81,7 @@ func main() {
 			WithField("vcsVersion", vcsVersion).
 			WithField("goVersion", buildInfo.GoVersion).
 			WithField("version", buildInfo.Main.Version).
-			Info("duc2mqtt version %s compiled with %s, commitId: %s", buildInfo.Main.Version, buildInfo.GoVersion, vcsVersion)
+			Infof("duc2mqtt version %s compiled with %s, commitId: %s", buildInfo.Main.Version, buildInfo.GoVersion, vcsVersion)
 	}
 
 	ducUrl, err := url.Parse(config.Duc.Url)

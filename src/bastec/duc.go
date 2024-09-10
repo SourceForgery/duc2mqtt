@@ -144,7 +144,7 @@ func login(requesterURL url.URL, password string, saltResponse Salts) (sessionId
 
 	if loginResponse.StatusCode != 200 {
 		loginBody, _ := io.ReadAll(loginResponse.Body)
-		logger().Debug("login response (status = %s) failed with body: %s", loginResponse.Status, string(loginBody))
+		logger().Debug("login response (status = %d) failed with body: %s", loginResponse.Status, string(loginBody))
 		err = errors.New(fmt.Sprintf("http error code %d", loginResponse.StatusCode))
 		return
 	}
@@ -190,7 +190,7 @@ func getSalts(requesterURL url.URL) (saltResponse Salts, err error) {
 
 	if res.StatusCode != 200 {
 		loginBody, _ := io.ReadAll(res.Body)
-		logger().Debug("login response (status = %s) failed with body: %s", res.Status, string(loginBody))
+		logger().Debug("login response (status = %d) failed with body: %s", res.Status, string(loginBody))
 		err = errors.New(fmt.Sprintf("http error code %d", res.StatusCode))
 		return
 	}
