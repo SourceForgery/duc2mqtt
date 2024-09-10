@@ -27,6 +27,7 @@ type Config struct {
 	Duc struct {
 		Url                string   `yaml:"url"`
 		DisallowedPrefixes []string `yaml:"disallowedPrefixes"`
+		EnabledSensors     []string `yaml:"enabledSensors"`
 	}
 	IntervalSeconds int64 `yaml:"IntervalSeconds"`
 }
@@ -113,10 +114,10 @@ func main() {
 		Model:            "Duc2Mqtt",
 		ModelID:          "Duc2Mqtt",
 		Manufacturer:     "SourceForgery",
-		ConfigurationURL: fmt.Sprintf("http://%s/config", ducUrl.String()),
+		ConfigurationURL: fmt.Sprintf("http://%s/config", ducUrl.Host),
 	}
 
-	hassioClient.SensorConfigurationData = updateHassioDeviceConfig(ducClient)
+	hassioClient.SensorConfigurationData = fetchMqttDeviceConfig(ducClient)
 	err = hassioClient.SubscribeToHomeAssistantStatus()
 	if err != nil {
 		logger().WithError(err).Fatal("Failed to subscribe to Home Assistant status: ", err)
@@ -155,7 +156,7 @@ func (config *Config) publishValuesLoop(hassioClient *hassio.Client, ducClient *
 	}
 }
 
-func updateHassioDeviceConfig(ducClient *bastec.BastecClient) map[string]hassio.SensorConfig {
+func fetchMqttDeviceConfig(ducClient *bastec.BastecClient) map[string]hassio.SensorConfig {
 	browse, err := ducClient.Browse()
 	if err != nil {
 		logger().WithError(err).Errorf("Failed to browse: %v", err)
@@ -171,13 +172,27 @@ device:
 				continue device
 			}
 		}
-		renamedTo := strings.ReplaceAll(point.Pid, ".", "_")
-		logger().Infof("Found sensor %s(converted to %s): %s", point.Pid, renamedTo, point.Desc)
-		sensorConfigs[renamedTo] = hassio.SensorConfig{
-			DeviceClass:       "sensor",
+		logger().Infof("Found sensor %s(converted to %s): %s", point.Pid, point.MqttName(), point.Desc)
+
+		// Default does not exist in hassio
+		var deviceClass string
+		switch point.Attr {
+		case "A":
+			deviceClass = "current"
+		case "V":
+			deviceClass = "voltage"
+		case "kWh":
+			deviceClass = "energy"
+		default:
+			deviceClass = "unknown"
+		}
+
+		sensorConfigs[point.Pid] = hassio.SensorConfig{
+			DeviceClass:       deviceClass,
 			Name:              point.Desc,
-			UnitOfMeasurement: point.Type,
+			UnitOfMeasurement: point.Attr,
 			Decimals:          point.Decimals,
+			MqttName:          point.MqttName(),
 		}
 	}
 	return sensorConfigs

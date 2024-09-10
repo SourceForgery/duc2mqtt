@@ -39,22 +39,28 @@ type Session struct {
 	City    string `json:"city"`
 }
 
+type Point struct {
+	Pid           string `json:"pid"`
+	Desc          string `json:"desc"`
+	Acc           string `json:"acc"`
+	Type          string `json:"type"`
+	DecimalsShown string `json:"decimals_shown,omitempty"`
+	Decimals      int    `json:"decimals,omitempty"`
+	Attr          string `json:"attr,omitempty"`
+}
+
 type BrowseResponse struct {
 	JsonRpc string `json:"json-rpc"`
 	Result  struct {
-		DevId  string `json:"devid"`
-		Points []struct {
-			Pid           string `json:"pid"`
-			Desc          string `json:"desc"`
-			Acc           string `json:"acc"`
-			Type          string `json:"type"`
-			DecimalsShown string `json:"decimals_shown,omitempty"`
-			Decimals      int    `json:"decimals,omitempty"`
-			Attr          string `json:"attr,omitempty"`
-		} `json:"points"`
+		DevId  string  `json:"devid"`
+		Points []Point `json:"points"`
 	} `json:"result"`
 	Error string `json:"error"`
 	Id    int    `json:"id"`
+}
+
+func (point *Point) MqttName() string {
+	return strings.ReplaceAll(point.Pid, ".", "_")
 }
 
 type ValuesResponse struct {
@@ -85,10 +91,12 @@ func Connect(url url.URL) (bastecClient *BastecClient, err error) {
 		return nil, errors.New("invalid url path. It must be empty")
 	}
 	if url.User == nil {
-		return nil, errors.New("missing user & password in url")
+		err = errors.New("missing user & password in url")
+		return
 	}
 	if _, hasPassword := url.User.Password(); !hasPassword {
-		return nil, errors.New("missing password in url")
+		err = errors.New("missing password in url")
+		return
 	}
 	user := strings.ToUpper(url.User.Username())
 	password, _ := url.User.Password()
@@ -98,25 +106,30 @@ func Connect(url url.URL) (bastecClient *BastecClient, err error) {
 	requesterURL.RawQuery = query.Encode()
 	requesterURL.User = nil
 	logger().Debugf("connecting to bastec '%s'", requesterURL.String())
-	res, err := http.Get(requesterURL.String())
+	saltResponse, err := getSalts(requesterURL)
 	if err != nil {
 		return
 	}
 
-	if res.StatusCode != 200 {
-		return nil, errors.New(fmt.Sprintf("http error code %d", res.StatusCode))
-	}
-	body, err := io.ReadAll(res.Body)
+	sessionId, err := login(requesterURL, password, saltResponse)
 	if err != nil {
 		return
 	}
 
-	var saltResponse Salts
-	err = json.Unmarshal(body, &saltResponse)
-	if err != nil {
-		return
-	}
+	rpcURL := requesterURL
+	rpcURL.Path = "if/json_rpc.js"
+	rpcURL.RawQuery = ""
 
+	logger().Infof("Connected to bastec duc '%s'", requesterURL.String())
+
+	bastecClient = &BastecClient{
+		sessionId:  sessionId,
+		RequestURL: rpcURL,
+	}
+	return
+}
+
+func login(requesterURL url.URL, password string, saltResponse Salts) (sessionId string, err error) {
 	hash := generateBastecHash(password, saltResponse)
 
 	loginUrl := requesterURL
@@ -130,7 +143,10 @@ func Connect(url url.URL) (bastecClient *BastecClient, err error) {
 	}
 
 	if loginResponse.StatusCode != 200 {
-		return nil, errors.New(fmt.Sprintf("http error code %d", res.StatusCode))
+		loginBody, _ := io.ReadAll(loginResponse.Body)
+		logger().Debug("login response (status = %s) failed with body: %s", loginResponse.Status, string(loginBody))
+		err = errors.New(fmt.Sprintf("http error code %d", loginResponse.StatusCode))
+		return
 	}
 
 	loginBody, err := io.ReadAll(loginResponse.Body)
@@ -147,10 +163,10 @@ func Connect(url url.URL) (bastecClient *BastecClient, err error) {
 	}
 
 	if session.UserId == "" {
-		return nil, errors.New(fmt.Sprintf("login failed: %s", string(loginBody)))
+		err = errors.New(fmt.Sprintf("login failed, no user found: %s", string(loginBody)))
+		return
 	}
 
-	var sessionId string
 	var cookies = loginResponse.Cookies()
 	for i := 0; i < len(cookies); i++ {
 		var cookie = cookies[i]
@@ -159,16 +175,33 @@ func Connect(url url.URL) (bastecClient *BastecClient, err error) {
 			break
 		}
 	}
+	if sessionId == "" {
+		err = errors.New("login failed: no session id found in cookies")
+		return
+	}
+	return
+}
 
-	rpcURL := requesterURL
-	rpcURL.Path = "if/json_rpc.js"
-	rpcURL.RawQuery = ""
+func getSalts(requesterURL url.URL) (saltResponse Salts, err error) {
+	res, err := http.Get(requesterURL.String())
+	if err != nil {
+		return
+	}
 
-	logger().Infof("Connected to bastec duc '%s'", requesterURL.String())
+	if res.StatusCode != 200 {
+		loginBody, _ := io.ReadAll(res.Body)
+		logger().Debug("login response (status = %s) failed with body: %s", res.Status, string(loginBody))
+		err = errors.New(fmt.Sprintf("http error code %d", res.StatusCode))
+		return
+	}
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return
+	}
 
-	bastecClient = &BastecClient{
-		sessionId:  sessionId,
-		RequestURL: rpcURL,
+	err = json.Unmarshal(body, &saltResponse)
+	if err != nil {
+		return
 	}
 	return
 }

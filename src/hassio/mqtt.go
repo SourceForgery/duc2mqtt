@@ -32,7 +32,11 @@ func (hassioClient *Client) sendMessage(topic string, payload interface{}) (err 
 	if token.Error() != nil {
 		return eris.Wrapf(token.Error(), "Error publishing to topic %s\n", topic)
 	} else {
-		logger().Debugf("Message published to topic %s\n", topic)
+		if logrus.GetLevel() >= logrus.TraceLevel {
+			logger().WithField("body", string(payloadBytes)).Tracef("Message published to topic %s\n", topic)
+		} else {
+			logger().Debugf("Message published to topic %s\n", topic)
+		}
 	}
 	return nil
 }
