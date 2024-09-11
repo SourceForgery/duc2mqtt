@@ -19,11 +19,12 @@ type AvailabilityMessage struct {
 }
 
 type SensorConfig struct {
-	DeviceClass       string `json:"device_class"`
+	DeviceClass       string `json:"device_class,omitempty"`
 	Name              string `json:"name"`
 	UnitOfMeasurement string `json:"unit_of_measurement"`
 	Decimals          int    `json:"decimals"`
 	MqttName          string `json:"-"`
+	Type              string `json:"-"`
 }
 
 // DiscoveryMessage represents the discovery payload to be sent to Home Assistant.

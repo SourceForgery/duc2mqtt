@@ -174,16 +174,21 @@ device:
 		logger().Infof("Found sensor %s(converted to %s): %s", point.Pid, point.MqttName(), point.Desc)
 
 		// Default does not exist in hassio
-		var deviceClass string
-		switch point.Attr {
-		case "A":
-			deviceClass = "current"
-		case "V":
-			deviceClass = "voltage"
-		case "kWh":
-			deviceClass = "energy"
-		default:
-			deviceClass = "unknown"
+		deviceClass := ""
+		switch point.Type {
+		case "enum":
+			deviceClass = "enum"
+		case "number":
+			switch point.Attr {
+			case "A":
+				deviceClass = "current"
+			case "V":
+				deviceClass = "voltage"
+			case "kWh":
+				deviceClass = "energy"
+			default:
+				deviceClass = "unknown"
+			}
 		}
 
 		sensorConfigs[point.Pid] = hassio.SensorConfig{
