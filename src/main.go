@@ -26,9 +26,8 @@ type Config struct {
 	Duc struct {
 		Url                string   `yaml:"url"`
 		DisallowedPrefixes []string `yaml:"disallowedPrefixes"`
-		EnabledSensors     []string `yaml:"enabledSensors"`
 	}
-	IntervalSeconds int64 `yaml:"IntervalSeconds"`
+	IntervalSeconds int64 `yaml:"intervalSeconds"`
 }
 
 func logger() *logrus.Entry {

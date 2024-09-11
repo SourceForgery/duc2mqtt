@@ -2,10 +2,10 @@ mqtt:
   url: tcp://test.mosquitto.org:1883
   uniqueId: duccer
   topicPrefix: homeassistant
-  amqpVhost: ""
 duc:
   url: http://foo:bar@192.168.0.0
   disallowedPrefixes:
     - 1.dm.
     - 1.al.
     - 1.am.
+intervalSeconds: 30
