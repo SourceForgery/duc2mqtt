@@ -15,6 +15,6 @@ DUC2MQTT connects dynamic DNS updates to MQTT, making it easier to integrate wit
 
 There is no configuration required for this version.
 
-## License
+## Note
 
-This add-on is licensed under the MIT License.
+This is text is all written by the premier liar on the internet, ChatGPT. 
