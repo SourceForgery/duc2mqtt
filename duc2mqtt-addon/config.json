@@ -1,0 +1,18 @@
+{
+  "name": "DUC2MQTT",
+  "version": "0.0.1",
+  "slug": "duc2mqtt",
+  "description": "DUC2MQTT connects dynamic DNS updates to MQTT for use in Home Assistant.",
+  "arch": ["armv7", "armhf", "aarch64", "amd64", "i386"],
+  "startup": "application",
+  "boot": "auto",
+  "ports": {
+    "8080/tcp": 8080
+  },
+  "ingress": false,
+  "options": {},
+  "schema": {},
+  "image": "sourceforgery/duc2mqtt:v0.0.1",
+  "url": "https://github.com/SourceForgery/duc2mqtt",
+  "init": false
+}
