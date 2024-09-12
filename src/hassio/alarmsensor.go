@@ -1,9 +1,19 @@
 package hassio
 
-import "fmt"
+import (
+	"fmt"
+)
 
 type AlarmSensorConfig struct {
-	NameField string
+	sensorId string
+	name     string
+}
+
+func NewAlarmSensorConfig(sensorId string, name string) *AlarmSensorConfig {
+	return &AlarmSensorConfig{
+		sensorId: sensorId,
+		name:     name,
+	}
 }
 
 func (a AlarmSensorConfig) DeviceClass() string {
@@ -11,7 +21,7 @@ func (a AlarmSensorConfig) DeviceClass() string {
 }
 
 func (a AlarmSensorConfig) Name() string {
-	return a.NameField
+	return a.name
 }
 
 func (a AlarmSensorConfig) UnitOfMeasurement() string {
@@ -22,17 +32,17 @@ func (a AlarmSensorConfig) Decimals() int {
 	return 0
 }
 
-func (a AlarmSensorConfig) MqttName() string {
-	return fmt.Sprintf("home/alarm/%s", a.NameField)
+func (a *AlarmSensorConfig) SensorType() string {
+	return "binary_sensor"
 }
 
 func (a AlarmSensorConfig) ConvertValue(value float64) string {
 	if value > 0 {
-		return "on"
+		return "ON"
 	}
-	return "off"
+	return "OFF"
 }
 
 func (a AlarmSensorConfig) ValueTemplate() string {
-	return "{{ value }}"
+	return fmt.Sprintf("{{ value_json['%s'] }}", a.sensorId)
 }

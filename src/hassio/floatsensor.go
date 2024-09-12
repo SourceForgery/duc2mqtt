@@ -4,42 +4,57 @@ import (
 	"fmt"
 	"math"
 	"strconv"
-	"strings"
 )
 
 type FloatSensorConfig struct {
-	NameField              string
-	DeviceClassField       string
-	UnitOfMeasurementField string
-	DecimalsField          int
+	sensorId          string
+	name              string
+	deviceClass       string
+	unitOfMeasurement string
+	decimals          int
+}
+
+func NewFloatSensorConfig(
+	sensorId string,
+	name string,
+	deviceClass string,
+	unitOfMeasurement string,
+	decimals int,
+) *FloatSensorConfig {
+	return &FloatSensorConfig{
+		sensorId,
+		name,
+		deviceClass,
+		unitOfMeasurement,
+		decimals,
+	}
+
 }
 
 func (f *FloatSensorConfig) DeviceClass() string {
-	return f.DeviceClassField
+	return f.deviceClass
 }
 
 func (f *FloatSensorConfig) Name() string {
-	return f.NameField
+	return f.name
 }
 
 func (f *FloatSensorConfig) UnitOfMeasurement() string {
-	return f.UnitOfMeasurementField
+	return f.unitOfMeasurement
 }
 
 func (f *FloatSensorConfig) Decimals() int {
-	return f.DecimalsField
+	return f.decimals
 }
 
-func (f *FloatSensorConfig) MqttName() string {
-	// Example implementation: return a formatted MQTT name
-	return strings.ReplaceAll(".", "_", f.Name())
+func (f *FloatSensorConfig) SensorType() string {
+	return "sensor"
 }
 
 func (f *FloatSensorConfig) ConvertValue(value float64) string {
-	return strconv.FormatFloat(value, 'f', f.DecimalsField, 64)
+	return strconv.FormatFloat(value, 'f', f.decimals, 64)
 }
 
 func (f *FloatSensorConfig) ValueTemplate() string {
-	// Example implementation: return a value template
-	return fmt.Sprintf("{{ value_json['%s'] | float / %d }}", f.NameField, (int)(math.Pow10(f.DecimalsField)))
+	return fmt.Sprintf("{{ value_json['%s'] | float / %d }}", f.sensorId, (int)(math.Pow10(f.decimals)))
 }

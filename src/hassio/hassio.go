@@ -5,6 +5,8 @@ import (
 	MQTT "github.com/eclipse/paho.mqtt.golang"
 	"github.com/rotisserie/eris"
 	"github.com/sirupsen/logrus"
+	"slices"
+	"strings"
 )
 
 func logger() *logrus.Entry {
@@ -21,7 +23,7 @@ type SensorConfig interface {
 	Name() string
 	UnitOfMeasurement() string
 	Decimals() int
-	MqttName() string
+	SensorType() string
 	ConvertValue(value float64) string
 	ValueTemplate() string
 }
@@ -43,7 +45,7 @@ type DiscoveryMessage struct {
 	StateTopic        string  `json:"state_topic"`             // Shared by all devices
 	CommandTopic      string  `json:"command_topic,omitempty"` // Not used by this device
 	ValueTemplate     string  `json:"value_template"`          // Converts the sensor state payload to string, e.g. '{{ value_json.power_meter}}'
-	UnitOfMeasurement string  `json:"unit_of_measurement"`
+	UnitOfMeasurement string  `json:"unit_of_measurement,omitempty"`
 	Device            *Device `json:"device"`
 }
 
@@ -64,10 +66,26 @@ type SensorState struct {
 	State string `json:"state"`
 }
 
+func MqttName(sensorId string) string {
+	return strings.ReplaceAll(sensorId, ".", "_")
+}
+
+func (hassioClient *Client) sensorTypes() []string {
+	sensorTypes := make([]string, 0)
+	for _, config := range hassioClient.SensorConfigurationData {
+		if !slices.Contains(sensorTypes, config.SensorType()) {
+			sensorTypes = append(sensorTypes, config.SensorType())
+		}
+	}
+	return sensorTypes
+}
+
 func (hassioClient *Client) SendAvailability() (err error) {
-	err = hassioClient.sendMessage(fmt.Sprintf("%s/sensor/%s/availability", hassioClient.prefix, hassioClient.uniqueDeviceId), "online")
-	if err != nil {
-		return eris.Wrapf(err, "failed to send availability message\n")
+	for _, sensorType := range hassioClient.sensorTypes() {
+		err = hassioClient.sendMessage(fmt.Sprintf("%s/%s/%s/availability", hassioClient.prefix, sensorType, hassioClient.uniqueDeviceId), "online")
+		if err != nil {
+			return eris.Wrapf(err, "failed to send availability message\n")
+		}
 	}
 	return
 }
@@ -78,12 +96,12 @@ func (hassioClient *Client) SendConfigurationData() (err error) {
 			Name:              config.Name(),
 			DeviceClass:       config.DeviceClass(),
 			UniqueID:          sensorId,
-			StateTopic:        fmt.Sprintf("%s/sensor/%s/state", hassioClient.prefix, hassioClient.uniqueDeviceId),
+			StateTopic:        fmt.Sprintf("%s/%s/%s/state", hassioClient.prefix, config.SensorType(), hassioClient.uniqueDeviceId),
 			ValueTemplate:     config.ValueTemplate(),
 			UnitOfMeasurement: config.UnitOfMeasurement(),
 			Device:            hassioClient.Device,
 		}
-		err = hassioClient.sendMessage(fmt.Sprintf("%s/sensor/%s/%s/config", hassioClient.prefix, hassioClient.uniqueDeviceId, config.MqttName), payload)
+		err = hassioClient.sendMessage(fmt.Sprintf("%s/%s/%s/%s/config", hassioClient.prefix, config.SensorType(), hassioClient.uniqueDeviceId, MqttName(sensorId)), payload)
 		if err != nil {
 			return
 		}
@@ -91,8 +109,8 @@ func (hassioClient *Client) SendConfigurationData() (err error) {
 	return nil
 }
 
-func (hassioClient *Client) SendSensorData(sensorStates map[string]string) (err error) {
-	err = hassioClient.sendMessage(fmt.Sprintf("%s/sensor/%s/state", hassioClient.prefix, hassioClient.uniqueDeviceId), sensorStates)
+func (hassioClient *Client) SendSensorData(sensorType string, sensorStates map[string]string) (err error) {
+	err = hassioClient.sendMessage(fmt.Sprintf("%s/%s/%s/state", hassioClient.prefix, sensorType, hassioClient.uniqueDeviceId), sensorStates)
 	if err != nil {
 		return eris.Wrap(err, "Couldn't send sensor state\n")
 	}
@@ -100,9 +118,11 @@ func (hassioClient *Client) SendSensorData(sensorStates map[string]string) (err 
 }
 
 func (hassioClient *Client) SendLastWill() (err error) {
-	token := hassioClient.client.Publish(fmt.Sprintf("%s/sensor/%s/availability", hassioClient.prefix, hassioClient.uniqueDeviceId), 0, true, "offline")
-	if err = token.Error(); err != nil {
-		return eris.Wrap(err, "Couldn't send last will message\n")
+	for _, sensorType := range hassioClient.sensorTypes() {
+		token := hassioClient.client.Publish(fmt.Sprintf("%s/%s/%s/availability", hassioClient.prefix, sensorType, hassioClient.uniqueDeviceId), 0, true, "offline")
+		if err = token.Error(); err != nil {
+			return eris.Wrap(err, "Couldn't send last will message\n")
+		}
 	}
 	return
 }

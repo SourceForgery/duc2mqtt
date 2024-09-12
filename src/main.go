@@ -135,18 +135,22 @@ func (config *Config) publishValuesLoop(hassioClient *hassio.Client, ducClient *
 			logger().WithError(err).Fatal("Failed to get values: ", err)
 			continue
 		}
-		valuesToSend := make(map[string]string)
+		valuesToSend := make(map[string]map[string]string)
 
 		for _, point := range values.Result.Points {
 			sensorConfig := hassioClient.SensorConfigurationData[point.Pid]
-			valuesToSend[point.Pid] = sensorConfig.ConvertValue(point.Value)
+			if valuesToSend[sensorConfig.SensorType()] == nil {
+				valuesToSend[sensorConfig.SensorType()] = make(map[string]string)
+			}
+			valuesToSend[sensorConfig.SensorType()][point.Pid] = sensorConfig.ConvertValue(point.Value)
 		}
-
-		err = hassioClient.SendSensorData(valuesToSend)
-		if err != nil {
-			logger().WithError(err).Error("Failed to send sensor data: ", err)
-		} else {
-			logger().Infof("Successfully sent sensor data")
+		for sensorType, sensorValuesToSend := range valuesToSend {
+			err = hassioClient.SendSensorData(sensorType, sensorValuesToSend)
+			if err != nil {
+				logger().WithError(err).Error("Failed to send sensor data: ", err)
+			} else {
+				logger().Infof("Successfully sent sensor data")
+			}
 		}
 	}
 }
@@ -171,9 +175,7 @@ device:
 		var sensorConfig hassio.SensorConfig
 		switch point.Type {
 		case "enum":
-			sensorConfig = &hassio.AlarmSensorConfig{
-				NameField: point.Desc,
-			}
+			sensorConfig = hassio.NewAlarmSensorConfig(point.Pid, point.Desc)
 		case "number":
 			deviceClass := ""
 			switch point.Attr {
@@ -187,17 +189,18 @@ device:
 				logger().Warnf("Unknown device class for sensor %s: %s", point.Pid, point.Attr)
 				continue device
 			}
-			sensorConfig = &hassio.FloatSensorConfig{
-				NameField:              point.Desc,
-				DeviceClassField:       deviceClass,
-				UnitOfMeasurementField: point.Attr,
-				DecimalsField:          point.Decimals,
-			}
+			sensorConfig = hassio.NewFloatSensorConfig(
+				point.Pid,
+				point.Desc,
+				deviceClass,
+				point.Attr,
+				point.Decimals,
+			)
 		default:
 			logger().Warnf("Unknown device class for sensor %s: %s", point.Pid, point.Desc)
 			continue
 		}
-		logger().Infof("Found sensor %s(converted to %s): %s", point.Pid, sensorConfig.MqttName(), point.Desc)
+		logger().Infof("Found sensor %s(converted to %s): %s", point.Pid, hassio.MqttName(point.Pid), point.Desc)
 		sensorConfigs[point.Pid] = sensorConfig
 	}
 	return sensorConfigs
