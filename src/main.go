@@ -34,12 +34,6 @@ func logger() *logrus.Entry {
 	return logrus.WithField("logger", "main")
 }
 
-func RemoveAuth(authedUrl url.URL) *url.URL {
-	authedUrl.User = url.UserPassword(authedUrl.User.Username(), "")
-	return &authedUrl
-}
-
-// Options represents the command-line options.
 type Options struct {
 	ConfigFile string `short:"c" long:"config" description:"Path to configuration file" default:"config.yaml"`
 	Verbose    []bool `short:"v" long:"verbose" description:"Enable verbose logging (repeat for more verbosity)"`
@@ -173,17 +167,15 @@ device:
 				continue device
 			}
 		}
-		logger().Infof("Found sensor %s(converted to %s): %s", point.Pid, point.MqttName(), point.Desc)
 
-		// Default does not exist in hassio
-		deviceClass := ""
-		var enumValues []string
+		var sensorConfig hassio.SensorConfig
 		switch point.Type {
 		case "enum":
-			deviceClass = "enum"
-			enumValues = strings.Split(point.Attr, ",")
-
+			sensorConfig = &hassio.AlarmSensorConfig{
+				NameField: point.Desc,
+			}
 		case "number":
+			deviceClass := ""
 			switch point.Attr {
 			case "A":
 				deviceClass = "current"
@@ -195,22 +187,18 @@ device:
 				logger().Warnf("Unknown device class for sensor %s: %s", point.Pid, point.Attr)
 				continue device
 			}
-			sensorConfigs[point.Pid] = &hassio.FloatSensorConfig{
+			sensorConfig = &hassio.FloatSensorConfig{
 				NameField:              point.Desc,
 				DeviceClassField:       deviceClass,
 				UnitOfMeasurementField: point.Attr,
 				DecimalsField:          point.Decimals,
 			}
+		default:
+			logger().Warnf("Unknown device class for sensor %s: %s", point.Pid, point.Desc)
+			continue
 		}
-
-		sensorConfigs[point.Pid] = hassio.SensorConfig{
-			DeviceClass:       deviceClass,
-			Name:              point.Desc,
-			UnitOfMeasurement: point.Attr,
-			Decimals:          point.Decimals,
-			MqttName:          point.MqttName(),
-			EnumValues:        enumValues,
-		}
+		logger().Infof("Found sensor %s(converted to %s): %s", point.Pid, sensorConfig.MqttName(), point.Desc)
+		sensorConfigs[point.Pid] = sensorConfig
 	}
 	return sensorConfigs
 }

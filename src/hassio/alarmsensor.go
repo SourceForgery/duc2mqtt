@@ -3,7 +3,7 @@ package hassio
 import "fmt"
 
 type AlarmSensorConfig struct {
-	name string
+	NameField string
 }
 
 func (a AlarmSensorConfig) DeviceClass() string {
@@ -11,7 +11,7 @@ func (a AlarmSensorConfig) DeviceClass() string {
 }
 
 func (a AlarmSensorConfig) Name() string {
-	return a.name
+	return a.NameField
 }
 
 func (a AlarmSensorConfig) UnitOfMeasurement() string {
@@ -23,14 +23,14 @@ func (a AlarmSensorConfig) Decimals() int {
 }
 
 func (a AlarmSensorConfig) MqttName() string {
-	return fmt.Sprintf("home/alarm/%s", a.name)
+	return fmt.Sprintf("home/alarm/%s", a.NameField)
 }
 
 func (a AlarmSensorConfig) ConvertValue(value float64) string {
 	if value > 0 {
-		return "Triggered"
+		return "on"
 	}
-	return "Not Triggered"
+	return "off"
 }
 
 func (a AlarmSensorConfig) ValueTemplate() string {
