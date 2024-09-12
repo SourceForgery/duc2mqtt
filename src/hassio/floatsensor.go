@@ -2,8 +2,6 @@ package hassio
 
 import (
 	"fmt"
-	"math"
-	"strconv"
 )
 
 type FloatSensorConfig struct {
@@ -11,7 +9,6 @@ type FloatSensorConfig struct {
 	name              string
 	deviceClass       string
 	unitOfMeasurement string
-	decimals          int
 }
 
 func NewFloatSensorConfig(
@@ -19,14 +16,12 @@ func NewFloatSensorConfig(
 	name string,
 	deviceClass string,
 	unitOfMeasurement string,
-	decimals int,
 ) *FloatSensorConfig {
 	return &FloatSensorConfig{
 		sensorId,
 		name,
 		deviceClass,
 		unitOfMeasurement,
-		decimals,
 	}
 
 }
@@ -43,18 +38,14 @@ func (f *FloatSensorConfig) UnitOfMeasurement() string {
 	return f.unitOfMeasurement
 }
 
-func (f *FloatSensorConfig) Decimals() int {
-	return f.decimals
-}
-
 func (f *FloatSensorConfig) SensorType() string {
 	return "sensor"
 }
 
 func (f *FloatSensorConfig) ConvertValue(value float64) string {
-	return strconv.FormatFloat(value, 'f', f.decimals, 64)
+	return fmt.Sprintf("%f", value)
 }
 
 func (f *FloatSensorConfig) ValueTemplate() string {
-	return fmt.Sprintf("{{ value_json['%s'] | float / %d }}", f.sensorId, (int)(math.Pow10(f.decimals)))
+	return fmt.Sprintf("{{ value_json['%s'] | float }}", f.sensorId)
 }

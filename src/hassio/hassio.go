@@ -22,7 +22,6 @@ type SensorConfig interface {
 	DeviceClass() string
 	Name() string
 	UnitOfMeasurement() string
-	Decimals() int
 	SensorType() string
 	ConvertValue(value float64) string
 	ValueTemplate() string

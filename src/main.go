@@ -194,7 +194,6 @@ device:
 				point.Desc,
 				deviceClass,
 				point.Attr,
-				point.Decimals,
 			)
 		default:
 			logger().Warnf("Unknown device class for sensor %s: %s", point.Pid, point.Desc)

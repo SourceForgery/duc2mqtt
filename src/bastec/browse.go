@@ -9,13 +9,11 @@ import (
 )
 
 type PointConfig struct {
-	Pid           string `json:"pid"`
-	Desc          string `json:"desc"`
-	Acc           string `json:"acc"`
-	Type          string `json:"type"`
-	DecimalsShown string `json:"decimals_shown,omitempty"`
-	Decimals      int    `json:"decimals,omitempty"`
-	Attr          string `json:"attr,omitempty"`
+	Pid  string `json:"pid"`
+	Desc string `json:"desc"`
+	Acc  string `json:"acc"`
+	Type string `json:"type"`
+	Attr string `json:"attr,omitempty"`
 }
 
 type BrowseResponse struct {
