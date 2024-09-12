@@ -144,8 +144,10 @@ func (config *Config) publishValuesLoop(hassioClient *hassio.Client, ducClient *
 		valuesToSend := make(map[string]string)
 
 		for _, point := range values.Result.Points {
-			valuesToSend[point.Pid] = fmt.Sprintf("%.0f", point.Value)
+			sensorConfig := hassioClient.SensorConfigurationData[point.Pid]
+			valuesToSend[point.Pid] = sensorConfig.ConvertValue(point.Value)
 		}
+
 		err = hassioClient.SendSensorData(valuesToSend)
 		if err != nil {
 			logger().WithError(err).Error("Failed to send sensor data: ", err)
@@ -175,9 +177,12 @@ device:
 
 		// Default does not exist in hassio
 		deviceClass := ""
+		var enumValues []string
 		switch point.Type {
 		case "enum":
 			deviceClass = "enum"
+			enumValues = strings.Split(point.Attr, ",")
+
 		case "number":
 			switch point.Attr {
 			case "A":
@@ -187,7 +192,14 @@ device:
 			case "kWh":
 				deviceClass = "energy"
 			default:
-				deviceClass = "unknown"
+				logger().Warnf("Unknown device class for sensor %s: %s", point.Pid, point.Attr)
+				continue device
+			}
+			sensorConfigs[point.Pid] = &hassio.FloatSensorConfig{
+				NameField:              point.Desc,
+				DeviceClassField:       deviceClass,
+				UnitOfMeasurementField: point.Attr,
+				DecimalsField:          point.Decimals,
 			}
 		}
 
@@ -197,6 +209,7 @@ device:
 			UnitOfMeasurement: point.Attr,
 			Decimals:          point.Decimals,
 			MqttName:          point.MqttName(),
+			EnumValues:        enumValues,
 		}
 	}
 	return sensorConfigs

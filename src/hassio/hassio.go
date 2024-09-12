@@ -5,7 +5,6 @@ import (
 	MQTT "github.com/eclipse/paho.mqtt.golang"
 	"github.com/rotisserie/eris"
 	"github.com/sirupsen/logrus"
-	"math"
 )
 
 func logger() *logrus.Entry {
@@ -17,14 +16,23 @@ type AvailabilityMessage struct {
 	DeviceID string `json:"device_id"`
 	Status   string `json:"status"`
 }
+type SensorConfig interface {
+	DeviceClass() string
+	Name() string
+	UnitOfMeasurement() string
+	Decimals() int
+	MqttName() string
+	ConvertValue(value float64) string
+	ValueTemplate() string
+}
 
-type SensorConfig struct {
-	DeviceClass       string `json:"device_class,omitempty"`
-	Name              string `json:"name"`
-	UnitOfMeasurement string `json:"unit_of_measurement"`
-	Decimals          int    `json:"decimals"`
-	MqttName          string `json:"-"`
-	Type              string `json:"-"`
+type SensorConfigX struct {
+	DeviceClass       string   `json:"device_class,omitempty"`
+	Name              string   `json:"name"`
+	UnitOfMeasurement string   `json:"unit_of_measurement"`
+	Decimals          int      `json:"decimals"`
+	MqttName          string   `json:"-"`
+	EnumValues        []string `json:"-"`
 }
 
 // DiscoveryMessage represents the discovery payload to be sent to Home Assistant.
@@ -67,12 +75,12 @@ func (hassioClient *Client) SendAvailability() (err error) {
 func (hassioClient *Client) SendConfigurationData() (err error) {
 	for sensorId, config := range hassioClient.SensorConfigurationData {
 		payload := DiscoveryMessage{
-			Name:              config.Name,
-			DeviceClass:       config.DeviceClass,
+			Name:              config.Name(),
+			DeviceClass:       config.DeviceClass(),
 			UniqueID:          sensorId,
 			StateTopic:        fmt.Sprintf("%s/sensor/%s/state", hassioClient.prefix, hassioClient.uniqueDeviceId),
-			ValueTemplate:     fmt.Sprintf("{{ value_json['%s'] | float / %d }}", sensorId, (int)(math.Pow10(config.Decimals))),
-			UnitOfMeasurement: config.UnitOfMeasurement,
+			ValueTemplate:     config.ValueTemplate(),
+			UnitOfMeasurement: config.UnitOfMeasurement(),
 			Device:            hassioClient.Device,
 		}
 		err = hassioClient.sendMessage(fmt.Sprintf("%s/sensor/%s/%s/config", hassioClient.prefix, hassioClient.uniqueDeviceId, config.MqttName), payload)
