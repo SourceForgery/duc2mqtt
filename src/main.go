@@ -4,6 +4,7 @@ package main
 import (
 	"duc2mqtt/src/bastec"
 	"duc2mqtt/src/hassio"
+	"encoding/json"
 	"fmt"
 	"github.com/jessevdk/go-flags"
 	"github.com/sirupsen/logrus"
@@ -18,16 +19,16 @@ import (
 // Config represents the YAML configuration structure.
 type Config struct {
 	Mqtt struct {
-		Url         string `yaml:"url"`
-		UniqueId    string `yaml:"uniqueId"`
-		TopicPrefix string `yaml:"topicPrefix"`
-		Name        string `yaml:"name"`
-	} `yaml:"mqtt"`
+		Url         string `yaml:"url" json:"url"`
+		UniqueId    string `yaml:"uniqueId" json:"uniqueId"`
+		TopicPrefix string `yaml:"topicPrefix" json:"topicPrefix"`
+		Name        string `yaml:"name" json:"name"`
+	} `yaml:"mqtt" json:"mqtt"`
 	Duc struct {
-		Url                string   `yaml:"url"`
-		DisallowedPrefixes []string `yaml:"disallowedPrefixes"`
-	}
-	IntervalSeconds int64 `yaml:"intervalSeconds"`
+		Url                string   `yaml:"url" json:"url"`
+		DisallowedPrefixes []string `yaml:"disallowedPrefixes" json:"disallowedPrefixes"`
+	} `yaml:"duc" json:"duc"`
+	IntervalSeconds int64 `yaml:"intervalSeconds" json:"intervalSeconds"`
 }
 
 func logger() *logrus.Entry {
@@ -213,7 +214,13 @@ func parseConfig(opts Options) Config {
 	}
 
 	var config Config
-	err = yaml.Unmarshal(configData, &config)
+	if strings.HasSuffix(opts.ConfigFile, "yaml") {
+		err = yaml.Unmarshal(configData, &config)
+	} else if strings.HasSuffix(opts.ConfigFile, "json") {
+		err = json.Unmarshal(configData, &config)
+	} else {
+		err = fmt.Errorf("unknown file extension: %s", opts.ConfigFile)
+	}
 	if err != nil {
 		logger().WithError(err).Fatal("Failed to parse configuration file: ", err)
 	}
