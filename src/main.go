@@ -34,12 +34,6 @@ func logger() *logrus.Entry {
 	return logrus.WithField("logger", "main")
 }
 
-func RemoveAuth(authedUrl url.URL) *url.URL {
-	authedUrl.User = url.UserPassword(authedUrl.User.Username(), "")
-	return &authedUrl
-}
-
-// Options represents the command-line options.
 type Options struct {
 	ConfigFile string `short:"c" long:"config" description:"Path to configuration file" default:"config.yaml"`
 	Verbose    []bool `short:"v" long:"verbose" description:"Enable verbose logging (repeat for more verbosity)"`
@@ -141,16 +135,22 @@ func (config *Config) publishValuesLoop(hassioClient *hassio.Client, ducClient *
 			logger().WithError(err).Fatal("Failed to get values: ", err)
 			continue
 		}
-		valuesToSend := make(map[string]string)
+		valuesToSend := make(map[string]map[string]string)
 
 		for _, point := range values.Result.Points {
-			valuesToSend[point.Pid] = fmt.Sprintf("%.0f", point.Value)
+			sensorConfig := hassioClient.SensorConfigurationData[point.Pid]
+			if valuesToSend[sensorConfig.SensorType()] == nil {
+				valuesToSend[sensorConfig.SensorType()] = make(map[string]string)
+			}
+			valuesToSend[sensorConfig.SensorType()][point.Pid] = sensorConfig.ConvertValue(point.Value)
 		}
-		err = hassioClient.SendSensorData(valuesToSend)
-		if err != nil {
-			logger().WithError(err).Error("Failed to send sensor data: ", err)
-		} else {
-			logger().Infof("Successfully sent sensor data")
+		for sensorType, sensorValuesToSend := range valuesToSend {
+			err = hassioClient.SendSensorData(sensorType, sensorValuesToSend)
+			if err != nil {
+				logger().WithError(err).Error("Failed to send sensor data: ", err)
+			} else {
+				logger().Infof("Successfully sent sensor data")
+			}
 		}
 	}
 }
@@ -171,28 +171,36 @@ device:
 				continue device
 			}
 		}
-		logger().Infof("Found sensor %s(converted to %s): %s", point.Pid, point.MqttName(), point.Desc)
 
-		// Default does not exist in hassio
-		var deviceClass string
-		switch point.Attr {
-		case "A":
-			deviceClass = "current"
-		case "V":
-			deviceClass = "voltage"
-		case "kWh":
-			deviceClass = "energy"
+		var sensorConfig hassio.SensorConfig
+		switch point.Type {
+		case "enum":
+			sensorConfig = hassio.NewAlarmSensorConfig(point.Pid, point.Desc)
+		case "number":
+			deviceClass := ""
+			switch point.Attr {
+			case "A":
+				deviceClass = "current"
+			case "V":
+				deviceClass = "voltage"
+			case "kWh":
+				deviceClass = "energy"
+			default:
+				logger().Warnf("Unknown device class for sensor %s: %s", point.Pid, point.Attr)
+				continue device
+			}
+			sensorConfig = hassio.NewFloatSensorConfig(
+				point.Pid,
+				point.Desc,
+				deviceClass,
+				point.Attr,
+			)
 		default:
-			deviceClass = "unknown"
+			logger().Warnf("Unknown device class for sensor %s: %s", point.Pid, point.Desc)
+			continue
 		}
-
-		sensorConfigs[point.Pid] = hassio.SensorConfig{
-			DeviceClass:       deviceClass,
-			Name:              point.Desc,
-			UnitOfMeasurement: point.Attr,
-			Decimals:          point.Decimals,
-			MqttName:          point.MqttName(),
-		}
+		logger().Infof("Found sensor %s(converted to %s): %s", point.Pid, hassio.MqttName(point.Pid), point.Desc)
+		sensorConfigs[point.Pid] = sensorConfig
 	}
 	return sensorConfigs
 }

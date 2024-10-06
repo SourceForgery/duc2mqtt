@@ -19,64 +19,12 @@ func logger() *logrus.Entry {
 	return logrus.WithField("logger", "bastec")
 }
 
-type Salts struct {
-	SaltA []byte `json:"salt_a"`
-	SaltB []byte `json:"salt_b"`
-}
-
 //goland:noinspection GoNameStartsWithPackageName
 type BastecClient struct {
 	sessionId          string
 	RequestURL         url.URL
 	serial             int
 	DisallowedPrefixes []string
-}
-
-type Session struct {
-	Name    string `json:"name"`
-	UserId  string `json:"userid"`
-	Company string `json:"company"`
-	City    string `json:"city"`
-}
-
-type Point struct {
-	Pid           string `json:"pid"`
-	Desc          string `json:"desc"`
-	Acc           string `json:"acc"`
-	Type          string `json:"type"`
-	DecimalsShown string `json:"decimals_shown,omitempty"`
-	Decimals      int    `json:"decimals,omitempty"`
-	Attr          string `json:"attr,omitempty"`
-}
-
-type BrowseResponse struct {
-	JsonRpc string `json:"json-rpc"`
-	Result  struct {
-		DevId  string  `json:"devid"`
-		Points []Point `json:"points"`
-	} `json:"result"`
-	Error string `json:"error"`
-	Id    int    `json:"id"`
-}
-
-func (point *Point) MqttName() string {
-	return strings.ReplaceAll(point.Pid, ".", "_")
-}
-
-type ValuesResponse struct {
-	JsonRpc string `json:"json-rpc"`
-	Result  struct {
-		Timet  int64  `json:"timet"`
-		Times  string `json:"times"`
-		Points []struct {
-			Pid           string  `json:"pid"`
-			Value         float64 `json:"value"`
-			Decimals      int     `json:"decimals"`
-			DecimalsShown int     `json:"decimals_shown"`
-		} `json:"points"`
-	} `json:"result"`
-	Error string `json:"error"`
-	Id    int    `json:"id"`
 }
 
 type JsonRpcRequest struct {
@@ -129,83 +77,6 @@ func Connect(url url.URL) (bastecClient *BastecClient, err error) {
 	return
 }
 
-func login(requesterURL url.URL, password string, saltResponse Salts) (sessionId string, err error) {
-	hash := generateBastecHash(password, saltResponse)
-
-	loginUrl := requesterURL
-	x := requesterURL.Query()
-	x.Add("hash", hash)
-	loginUrl.RawQuery = x.Encode()
-	loginResponse, err := http.Get(loginUrl.String())
-	logger().Trace("loginUrl: ", loginUrl.String())
-	if err != nil {
-		return
-	}
-
-	if loginResponse.StatusCode != 200 {
-		loginBody, _ := io.ReadAll(loginResponse.Body)
-		logger().Debugf("login response (status = %s) failed with body: %s", loginResponse.Status, string(loginBody))
-		err = errors.New(fmt.Sprintf("http error code %d", loginResponse.StatusCode))
-		return
-	}
-
-	loginBody, err := io.ReadAll(loginResponse.Body)
-	if err != nil {
-		return
-	}
-
-	logger().Trace("login response body: ", string(loginBody))
-
-	var session Session
-	err = json.Unmarshal(loginBody, &session)
-	if err != nil {
-		return
-	}
-
-	if session.UserId == "" {
-		err = errors.New(fmt.Sprintf("login failed, no user found: %s", string(loginBody)))
-		return
-	}
-
-	var cookies = loginResponse.Cookies()
-	for i := 0; i < len(cookies); i++ {
-		var cookie = cookies[i]
-		if cookie.Name == "SESSION_ID" {
-			sessionId = cookie.Value
-			break
-		}
-	}
-	if sessionId == "" {
-		err = errors.New("login failed: no session id found in cookies")
-		return
-	}
-	return
-}
-
-func getSalts(requesterURL url.URL) (saltResponse Salts, err error) {
-	res, err := http.Get(requesterURL.String())
-	if err != nil {
-		return
-	}
-
-	if res.StatusCode != 200 {
-		loginBody, _ := io.ReadAll(res.Body)
-		logger().Debugf("login response (status = %s) failed with body: %s", res.Status, string(loginBody))
-		err = errors.New(fmt.Sprintf("http error code %d", res.StatusCode))
-		return
-	}
-	body, err := io.ReadAll(res.Body)
-	if err != nil {
-		return
-	}
-
-	err = json.Unmarshal(body, &saltResponse)
-	if err != nil {
-		return
-	}
-	return
-}
-
 func (bastecClient *BastecClient) GetVersion() (response []byte, err error) {
 	var rpcRequest = JsonRpcRequest{
 		JsonRpcVersion: "2.0",
@@ -218,62 +89,6 @@ func (bastecClient *BastecClient) GetVersion() (response []byte, err error) {
 	}
 	return
 
-}
-
-func (bastecClient *BastecClient) Browse() (valueResponse *BrowseResponse, err error) {
-	var rpcRequest = JsonRpcRequest{
-		JsonRpcVersion: "2.0",
-		Method:         "pdb.browse",
-	}
-
-	response, err := bastecClient.jsonRpc(rpcRequest)
-	if err != nil {
-		return nil, eris.Wrapf(err, "failed to execute jsonRPC")
-	}
-
-	var browseResponse BrowseResponse
-	err = json.Unmarshal(response, &browseResponse)
-	if err != nil {
-		return nil, eris.Wrapf(err, "failed to parse json")
-	}
-
-	if logger().Logger.Level >= logrus.TraceLevel {
-		b, _ := json.MarshalIndent(browseResponse, "", "\t")
-		logger().Trace(string(b))
-	}
-	for _, point := range browseResponse.Result.Points {
-		logger().Debugf("Found sensor '%s' on device '%s' with ", point.Pid, browseResponse.Result.DevId)
-	}
-	if browseResponse.Error != "" {
-		err = errors.New(fmt.Sprintf("browse error: %s", browseResponse.Error))
-	}
-
-	return &browseResponse, nil
-}
-
-func (bastecClient *BastecClient) GetValues(values []string) (response *ValuesResponse, err error) {
-
-	params := [][]string{values}
-
-	var rpcRequest = JsonRpcRequest{
-		JsonRpcVersion: "2.0",
-		Method:         "pdb.getvalue",
-		Params:         params,
-	}
-
-	jsonResponse, err := bastecClient.jsonRpc(rpcRequest)
-	if err != nil {
-		return nil, eris.Wrapf(err, "failed GetValues jsonRpc request")
-	}
-	logger().Debug(string(jsonResponse))
-	err = json.Unmarshal(jsonResponse, &response)
-	if err != nil {
-		return
-	}
-	if response.Error != "" {
-		err = errors.New(fmt.Sprintf("getValues error: %s", response.Error))
-	}
-	return
 }
 
 func (bastecClient *BastecClient) jsonRpc(request JsonRpcRequest) (body []byte, err error) {
