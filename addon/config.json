@@ -1,0 +1,31 @@
+{
+  "name": "Duc2MQTT",
+  "version": "1.0.0",
+  "slug": "duc2mqtt",
+  "description": "An add-on to connect DUC to MQTT",
+  "arch": ["aarch64", "amd64", "armv7", "i386"],
+  "startup": "services",
+  "boot": "auto",
+  "options": {
+    "mqtt": {
+      "url": "tcp://username:password@mqtt-server:1883/vhost",
+      "uniqueId": "duccer",
+      "topicPrefix": "homeassistant"
+    },
+    "duc": {
+      "url": "http://username:password@duc",
+      "disallowedPrefixes": ["1.dm.", "1.am."]
+    }
+  },
+  "schema": {
+    "mqtt": {
+      "url": "str",
+      "uniqueId": "str",
+      "topicPrefix": "str"
+    },
+    "duc": {
+      "url": "str",
+      "disallowedPrefixes": ["str"]
+    }
+  }
+}
