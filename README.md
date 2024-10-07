@@ -1,9 +1,8 @@
 [![ci](https://github.com/SourceForgery/duc2mqtt/actions/workflows/ci.yml/badge.svg)](https://github.com/SourceForgery/duc2mqtt/actions/workflows/ci.yml)
-
+[![Go Reference](https://pkg.go.dev/badge/github.com/SourceForgery/duc2mqtt/bastec.svg)](https://pkg.go.dev/github.com/SourceForgery/duc2mqtt/bastec)
+[![Go Reference](https://pkg.go.dev/badge/github.com/SourceForgery/duc2mqtt/bastec.svg)](https://pkg.go.dev/github.com/SourceForgery/duc2mqtt/hassio)
 
 # DUC2MQTT
-
-[![ci](https://github.com/SourceForgery/duc2mqtt/actions/workflows/ci.yml/badge.svg)](https://github.com/SourceForgery/duc2mqtt/actions/workflows/ci.yml)
 
 duc2mqtt is a project designed to integrate with Home Assistant via MQTT, allowing you to publish sensors from Bastec Bas2 DUC to MQTT.
 
