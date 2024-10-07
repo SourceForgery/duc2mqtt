@@ -56,6 +56,22 @@ As the license states, this software is NOT endorsed by Bastec, nor is it suppor
     ```sh
     docker-compose ps
     ```
+   
+### As a Home Assistant addon
+
+Unfortunately, I've been unable to make a repository, so the following is required.
+The instructions are for HassOS, but should apply to any docker-based home assistant installation
+
+1. Install an ssh-server on home assistant (I use the official addon Terminal & SSH)
+2. Use sftp to upload the files in the repository's addon directory into e.g. duc2mqtt.
+   If you're not used to sftp, I recommend using filezilla. Caveat: SFTP is what you want, _NOT_ FTPS
+3. The structure should look like
+   /addon/duc2mqtt/Dockerfile
+   /addon/duc2mqtt/config.json
+4. Restart the hassio
+5. Go into the plugin and press install. It will take a while as it will download
+   and build the duc2mqtt software.
+6. Configure it
 
 ## Building the Project
 
@@ -101,6 +117,7 @@ As the license states, this software is NOT endorsed by Bastec, nor is it suppor
 
 ## Configuration
 
+### Yaml
 ```yaml
 mqtt:
   url: tcp://user:password@test.mosquitto.org:1883
@@ -114,6 +131,27 @@ duc:
   - 1.am.
 ```
 
+### Json
+```json
+{
+  "mqtt": {
+    "url": "tcp://user:password@test.mosquitto.org:1883",
+    "uniqueId": "duccer",
+    "topicPrefix": "homeassistant"
+  },
+  "duc": {
+    "url": "http://foo:bar@192.168.0.0",
+    "disallowedPrefixes": [
+      "1.dm.",
+      "1.al.",
+      "1.am."
+    ]
+  }
+}
+```
+
+### Explanation
+
 * mqtt
   * **url** the url to the mqtt server (with auth). I use rabbitmq which is an amqp server which has a special caveat,
     namely vhosts. vhosts are set by adding a path at the end, e.g.
@@ -121,7 +159,7 @@ duc:
      have `/` as vhost, you need to set it in the url with double slashes, e.g. `....org:1883//`
   * **topicPrefix** optional. If not set, will default to "homeassistant". it's the first part
     of the mqtt topic published to, e.g. "homeassistant/sensor/id/status"
-  * **uniqueId** what the device will present itself as in the mqtt
+  * **uniqueId** what the device will present itself as in the mqtt. Just use something that isn't used by something else.
 * duc
   * **url** http url (with auth) used to connect to the Bas2 duc. 
   * **disallowedPrefixes** There are a lot of test properties in a freshly installed duc that are
