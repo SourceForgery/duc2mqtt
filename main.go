@@ -2,10 +2,10 @@
 package main
 
 import (
-	"duc2mqtt/src/bastec"
-	"duc2mqtt/src/hassio"
 	"encoding/json"
 	"fmt"
+	"github.com/SourceForgery/duc2mqtt/bastec"
+	hassio2 "github.com/SourceForgery/duc2mqtt/hassio"
 	"github.com/jessevdk/go-flags"
 	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v3"
@@ -94,12 +94,12 @@ func main() {
 	}
 
 	amqpVhost := strings.TrimPrefix(mqttUrl.Path, "/")
-	hassioClient, err := hassio.ConnectMqtt(*mqttUrl, amqpVhost, config.Mqtt.UniqueId, config.Mqtt.TopicPrefix)
+	hassioClient, err := hassio2.ConnectMqtt(*mqttUrl, amqpVhost, config.Mqtt.UniqueId, config.Mqtt.TopicPrefix)
 	if err != nil {
 		logger().WithError(err).Fatal("Failed to connect to mqtt", err)
 	}
 
-	hassioClient.Device = &hassio.Device{
+	hassioClient.Device = &hassio2.Device{
 		Identifiers:      []string{config.Mqtt.UniqueId},
 		Name:             config.Mqtt.Name,
 		SWVersion:        buildInfo.Main.Version,
@@ -120,7 +120,7 @@ func main() {
 	config.publishValuesLoop(hassioClient, ducClient)
 }
 
-func (config *Config) publishValuesLoop(hassioClient *hassio.Client, ducClient *bastec.BastecClient) {
+func (config *Config) publishValuesLoop(hassioClient *hassio2.Client, ducClient *bastec.BastecClient) {
 	first := true
 	for {
 		if !first {
@@ -156,13 +156,13 @@ func (config *Config) publishValuesLoop(hassioClient *hassio.Client, ducClient *
 	}
 }
 
-func fetchMqttDeviceConfig(ducClient *bastec.BastecClient) map[string]hassio.SensorConfig {
+func fetchMqttDeviceConfig(ducClient *bastec.BastecClient) map[string]hassio2.SensorConfig {
 	browse, err := ducClient.Browse()
 	if err != nil {
 		logger().WithError(err).Errorf("Failed to browse: %v", err)
 	}
 
-	sensorConfigs := map[string]hassio.SensorConfig{}
+	sensorConfigs := map[string]hassio2.SensorConfig{}
 device:
 	for _, point := range browse.Result.Points {
 
@@ -173,10 +173,10 @@ device:
 			}
 		}
 
-		var sensorConfig hassio.SensorConfig
+		var sensorConfig hassio2.SensorConfig
 		switch point.Type {
 		case "enum":
-			sensorConfig = hassio.NewAlarmSensorConfig(point.Pid, point.Desc)
+			sensorConfig = hassio2.NewAlarmSensorConfig(point.Pid, point.Desc)
 		case "number":
 			deviceClass := ""
 			switch point.Attr {
@@ -190,7 +190,7 @@ device:
 				logger().Warnf("Unknown device class for sensor %s: %s", point.Pid, point.Attr)
 				continue device
 			}
-			sensorConfig = hassio.NewFloatSensorConfig(
+			sensorConfig = hassio2.NewFloatSensorConfig(
 				point.Pid,
 				point.Desc,
 				deviceClass,
@@ -200,7 +200,7 @@ device:
 			logger().Warnf("Unknown device class for sensor %s: %s", point.Pid, point.Desc)
 			continue
 		}
-		logger().Infof("Found sensor %s(converted to %s): %s", point.Pid, hassio.MqttName(point.Pid), point.Desc)
+		logger().Infof("Found sensor %s(converted to %s): %s", point.Pid, hassio2.MqttName(point.Pid), point.Desc)
 		sensorConfigs[point.Pid] = sensorConfig
 	}
 	return sensorConfigs
