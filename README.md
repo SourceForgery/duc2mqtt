@@ -165,6 +165,24 @@ duc:
     useless. Some others are not interesting for other reasons. This allows for blacklisting
     sensor pids.
 
+## Reusable components
+
+### bastec
+
+```shell
+go get github.com/SourceForgery/duc2mqtt/bastec
+```
+
+This is what's needed to communicate with the Bastec BAS2 DUCs. It encapsulates logging in and getting data.
+
+###
+```shell
+go get github.com/SourceForgery/duc2mqtt/hassio
+```
+
+This is the MQTT Home Assistant integration. It's rather limited (as the sensors I have connected to the duc are few),
+but the sensor types etc. that are implemented do work flawlessly with home assistant including autodetection of device
+and auto-reconfigure if home assistant restarts.
 
 ## Contributing
 
