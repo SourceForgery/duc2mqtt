@@ -38,7 +38,7 @@ jobs:
           GOARCH: amd64
           CGO_ENABLED: "0"
         run: |
-          go build -o duc2mqtt ./src/
+          go build -o duc2mqtt
 
       - name: Build docker application
         run: |
