@@ -11,7 +11,7 @@ WORKDIR /app
 RUN git clone https://github.com/SourceForgery/duc2mqtt.git .
 
 # Build the Go binary statically
-RUN CGO_ENABLED=0 GOOS=linux go build -o duc2mqtt ./src/
+RUN CGO_ENABLED=0 GOOS=linux go build -o duc2mqtt
 
 # Runtime Stage
 FROM scratch
