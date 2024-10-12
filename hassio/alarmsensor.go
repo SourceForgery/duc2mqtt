@@ -4,6 +4,8 @@ import (
 	"fmt"
 )
 
+var _ SensorConfig = (*AlarmSensorConfig)(nil)
+
 type AlarmSensorConfig struct {
 	sensorId string
 	name     string
@@ -45,4 +47,8 @@ func (a AlarmSensorConfig) ConvertValue(value float64) string {
 
 func (a AlarmSensorConfig) ValueTemplate() string {
 	return fmt.Sprintf("{{ value_json['%s'] }}", a.sensorId)
+}
+
+func (a AlarmSensorConfig) StateClass() string {
+	return "measurement"
 }

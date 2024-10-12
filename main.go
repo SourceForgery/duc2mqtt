@@ -179,6 +179,7 @@ device:
 			sensorConfig = hassio2.NewAlarmSensorConfig(point.Pid, point.Desc)
 		case "number":
 			deviceClass := ""
+			stateClass := "measurement"
 			switch point.Attr {
 			case "A":
 				deviceClass = "current"
@@ -186,6 +187,7 @@ device:
 				deviceClass = "voltage"
 			case "kWh":
 				deviceClass = "energy"
+				stateClass = "total_increasing"
 			default:
 				logger().Warnf("Unknown device class for sensor %s: %s", point.Pid, point.Attr)
 				continue device
@@ -195,6 +197,7 @@ device:
 				point.Desc,
 				deviceClass,
 				point.Attr,
+				stateClass,
 			)
 		default:
 			logger().Warnf("Unknown device class for sensor %s: %s", point.Pid, point.Desc)

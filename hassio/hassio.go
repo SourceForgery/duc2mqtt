@@ -25,6 +25,7 @@ type SensorConfig interface {
 	SensorType() string
 	ConvertValue(value float64) string
 	ValueTemplate() string
+	StateClass() string
 }
 
 type SensorConfigX struct {
@@ -46,6 +47,7 @@ type DiscoveryMessage struct {
 	ValueTemplate     string  `json:"value_template"`          // Converts the sensor state payload to string, e.g. '{{ value_json.power_meter}}'
 	UnitOfMeasurement string  `json:"unit_of_measurement,omitempty"`
 	Device            *Device `json:"device"`
+	StateClass        string  `json:"state_class,omitempty"`
 }
 
 // Device represents the device information for Home Assistant.
@@ -99,6 +101,7 @@ func (hassioClient *Client) SendConfigurationData() (err error) {
 			ValueTemplate:     config.ValueTemplate(),
 			UnitOfMeasurement: config.UnitOfMeasurement(),
 			Device:            hassioClient.Device,
+			StateClass:        config.StateClass(),
 		}
 		err = hassioClient.sendMessage(fmt.Sprintf("%s/%s/%s/%s/config", hassioClient.prefix, config.SensorType(), hassioClient.uniqueDeviceId, MqttName(sensorId)), payload)
 		if err != nil {

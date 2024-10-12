@@ -4,11 +4,14 @@ import (
 	"fmt"
 )
 
+var _ SensorConfig = (*FloatSensorConfig)(nil)
+
 type FloatSensorConfig struct {
 	sensorId          string
 	name              string
 	deviceClass       string
 	unitOfMeasurement string
+	stateClass        string
 }
 
 func NewFloatSensorConfig(
@@ -16,14 +19,15 @@ func NewFloatSensorConfig(
 	name string,
 	deviceClass string,
 	unitOfMeasurement string,
+	stateClass string,
 ) *FloatSensorConfig {
 	return &FloatSensorConfig{
 		sensorId,
 		name,
 		deviceClass,
 		unitOfMeasurement,
+		stateClass,
 	}
-
 }
 
 func (f *FloatSensorConfig) DeviceClass() string {
@@ -48,4 +52,8 @@ func (f *FloatSensorConfig) ConvertValue(value float64) string {
 
 func (f *FloatSensorConfig) ValueTemplate() string {
 	return fmt.Sprintf("{{ value_json['%s'] | float }}", f.sensorId)
+}
+
+func (f *FloatSensorConfig) StateClass() string {
+	return f.stateClass
 }
