@@ -187,7 +187,7 @@ device:
 				deviceClass = "voltage"
 			case "kWh":
 				deviceClass = "energy"
-				stateClass = "total_increasing"
+				stateClass = "total"
 			default:
 				logger().Warnf("Unknown device class for sensor %s: %s", point.Pid, point.Attr)
 				continue device
