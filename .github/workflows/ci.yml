@@ -23,6 +23,8 @@ jobs:
       with:
           go-version-file: './go.mod'
 
+    - uses: "home-assistant/actions/hassfest@master"
+      name: Check hassio
 
     - name: Build
       run: go build -v ./...
