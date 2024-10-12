@@ -27,47 +27,13 @@
   },
   "schema": {
     "mqtt": {
-      "url": {
-        "type": "string",
-        "required": true,
-        "name": "MQTT Broker URL",
-        "description": "The connection string for your MQTT broker, including protocol, credentials, and host.",
-        "example": "tcp://username:password@broker_ip:1883/client_id"
-      },
-      "uniqueId": {
-        "type": "string",
-        "name": "Unique ID",
-        "description": "A unique identifier for this MQTT client.",
-        "default": "duccer"
-      },
-      "topicPrefix": {
-        "type": "string",
-        "name": "Topic Prefix",
-        "description": "Prefix for MQTT topics where messages will be published.",
-        "default": "homeassistant"
-      }
+      "url": "str",
+      "uniqueId": "str",
+      "topicPrefix": "str"
     },
     "duc": {
-      "url": {
-        "type": "string",
-        "required": true,
-        "name": "DUC Endpoint URL",
-        "description": "The URL for your DUC endpoint, including protocol and credentials.",
-        "example": "http://username:password@duc_device_ip"
-      },
-      "disallowedPrefixes": {
-        "type": "list",
-        "name": "Disallowed Prefixes",
-        "description": "List of prefixes to exclude from DUC data.",
-        "default": [
-          "1.dm.",
-          "1.am."
-        ],
-        "item": {
-          "type": "string",
-          "name": "Prefix"
-        }
-      }
+      "url": "str",
+      "disallowedPrefixes": ["str"]
     }
   }
 }
