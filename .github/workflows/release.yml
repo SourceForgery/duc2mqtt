@@ -3,6 +3,11 @@ name: Create Release
 on:
   workflow_dispatch:
 
+permissions:
+  contents: write
+  pull-requests: write
+  #deployments: write
+
 jobs:
   build:
     runs-on:
@@ -51,6 +56,22 @@ jobs:
           docker tag sourceforgery/duc2mqtt:latest sourceforgery/duc2mqtt:${{ steps.tag_version.outputs.new_tag }}
           docker push sourceforgery/duc2mqtt:latest
           docker push sourceforgery/duc2mqtt:${{ steps.tag_version.outputs.new_tag }}
+
+      - name: Update version
+        id: update_version
+        run: |
+          jq --arg version "${{ steps.tag_version.outputs.new_tag }}" '.version = $version' config.json > tmp.json && mv tmp.json config.json
+
+      - name: push version
+        run: |
+          git config --local user.email "github@github-actions.example.com"
+          git config --local user.name "github-actions[bot]"
+          git commit -a -m "Add changes"
+
+      - name: Push changes
+        uses: ad-m/github-push-action@v0.6.0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create Release
         id: create_release
