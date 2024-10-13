@@ -1,6 +1,6 @@
 {
   "name": "Duc2MQTT",
-  "version": "1.0.0",
+  "version": "v1.0.5",
   "slug": "duc2mqtt",
   "description": "An add-on to connect DUC to MQTT",
   "arch": [
@@ -33,7 +33,9 @@
     },
     "duc": {
       "url": "str",
-      "disallowedPrefixes": ["str"]
+      "disallowedPrefixes": [
+        "str"
+      ]
     }
   }
 }
