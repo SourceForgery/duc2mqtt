@@ -185,6 +185,8 @@ device:
 				deviceClass = "current"
 			case "V":
 				deviceClass = "voltage"
+			case "W":
+				deviceClass = "power"
 			case "kWh":
 				deviceClass = "energy"
 				stateClass = "total"
