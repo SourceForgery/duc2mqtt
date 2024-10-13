@@ -8,7 +8,7 @@ RUN apk add --no-cache git ca-certificates
 WORKDIR /app
 
 # Clone the repository
-RUN git clone https://github.com/SourceForgery/duc2mqtt.git .
+RUN git clone https://github.com/SourceForgery/duc2mqtt.git version
 
 # Build the Go binary statically
 RUN CGO_ENABLED=0 GOOS=linux go build -o duc2mqtt
