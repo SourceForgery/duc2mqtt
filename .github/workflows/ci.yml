@@ -23,7 +23,9 @@ jobs:
           go-version-file: './go.mod'
 
     - name: Build
-      run: go build -v ./...
+      run: |
+        go build -v ./...
+        docker build addon/ --build-arg BUILD_VERSION=${GITHUB_SHA}
 
     - name: Test
       run: go test -v ./...
