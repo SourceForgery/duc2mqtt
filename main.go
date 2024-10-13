@@ -16,6 +16,10 @@ import (
 	"time"
 )
 
+var (
+	version = "unknown"
+)
+
 // Config represents the YAML configuration structure.
 type Config struct {
 	Mqtt struct {
@@ -73,8 +77,9 @@ func main() {
 		logger().
 			WithField("vcsVersion", vcsVersion).
 			WithField("goVersion", buildInfo.GoVersion).
-			WithField("version", buildInfo.Main.Version).
-			Infof("duc2mqtt version %s compiled with %s, commitId: %s", buildInfo.Main.Version, buildInfo.GoVersion, vcsVersion)
+			WithField("version", version).
+			Infof("duc2mqtt version %s compiled with %s, commitId: %s", version, buildInfo.GoVersion, vcsVersion)
+		os.Exit(1)
 	}
 
 	ducUrl, err := url.Parse(config.Duc.Url)
