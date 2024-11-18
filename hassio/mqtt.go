@@ -86,7 +86,7 @@ func ConnectMqtt(url url.URL, amqpVhost string, uniqueId string, prefix string) 
 		}
 	}
 	opts := MQTT.NewClientOptions().AddBroker(url.String()).
-		SetClientID("duc2mqtt").
+		SetClientID(url.User.Username()).
 		SetAutoReconnect(true).
 		SetConnectRetry(true).
 		SetConnectionLostHandler(onConnectionLost).
