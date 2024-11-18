@@ -1,6 +1,6 @@
 {
   "name": "Duc2MQTT",
-  "version": "v1.0.6",
+  "version": "v1.0.7",
   "slug": "duc2mqtt",
   "description": "An add-on to connect DUC to MQTT",
   "arch": [
