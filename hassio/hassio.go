@@ -4,13 +4,20 @@ import (
 	"fmt"
 	MQTT "github.com/eclipse/paho.mqtt.golang"
 	"github.com/rotisserie/eris"
-	"github.com/sirupsen/logrus"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 	"slices"
 	"strings"
 )
 
-func logger() *logrus.Entry {
-	return logrus.WithField("logger", "mqtt")
+var lg *zerolog.Logger
+
+func logger() *zerolog.Logger {
+	if lg == nil {
+		l := log.Logger.With().Str("logger", "mqtt").Logger()
+		lg = &l
+	}
+	return lg
 }
 
 // AvailabilityMessage represents the MQTT availability message
@@ -141,11 +148,11 @@ func (hassioClient *Client) SubscribeToHomeAssistantStatus() (err error) {
 		err = hassioClient.client.Subscribe(fmt.Sprintf("%s/status", hassioClient.prefix), 0, func(client MQTT.Client, msg MQTT.Message) {
 			if string(msg.Payload()) == "online" {
 				if err := hassioClient.SendAvailability(); err != nil {
-					logger().WithError(err).Errorf("Failed to subscribe to Home Assistant status: %s\n", err)
+					logger().Error().Err(err).Msg("Failed to subscribe to Home Assistant status")
 				}
 
 				if err := hassioClient.SendConfigurationData(); err != nil {
-					logger().WithError(err).Errorf("Failed to subscribe to Home Assistant status: %s\n", err)
+					logger().Error().Err(err).Msg("Failed to subscribe to Home Assistant status")
 				}
 			}
 		}).Error()

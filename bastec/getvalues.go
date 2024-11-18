@@ -39,7 +39,7 @@ func (bastecClient *BastecClient) GetValues(values []string) (response *ValuesRe
 	if err != nil {
 		return nil, eris.Wrapf(err, "failed GetValues jsonRpc request")
 	}
-	logger().Debug(string(jsonResponse))
+	logger().Debug().Msg(string(jsonResponse))
 	err = json.Unmarshal(jsonResponse, &response)
 	if err != nil {
 		return

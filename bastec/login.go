@@ -29,14 +29,14 @@ func login(requesterURL url.URL, password string, saltResponse Salts) (sessionId
 	x.Add("hash", hash)
 	loginUrl.RawQuery = x.Encode()
 	loginResponse, err := http.Get(loginUrl.String())
-	logger().Trace("loginUrl: ", loginUrl.String())
+	logger().Trace().Msgf("loginUrl: %s", loginUrl.String())
 	if err != nil {
 		return
 	}
 
 	if loginResponse.StatusCode != 200 {
 		loginBody, _ := io.ReadAll(loginResponse.Body)
-		logger().Debugf("login response (status = %s) failed with body: %s", loginResponse.Status, string(loginBody))
+		logger().Debug().Msgf("login response (status = %s) failed with body: %s", loginResponse.Status, string(loginBody))
 		err = errors.New(fmt.Sprintf("http error code %d", loginResponse.StatusCode))
 		return
 	}
@@ -46,7 +46,7 @@ func login(requesterURL url.URL, password string, saltResponse Salts) (sessionId
 		return
 	}
 
-	logger().Trace("login response body: ", string(loginBody))
+	logger().Trace().Msgf("login response body: %s", string(loginBody))
 
 	var session Session
 	err = json.Unmarshal(loginBody, &session)
@@ -82,7 +82,7 @@ func getSalts(requesterURL url.URL) (saltResponse Salts, err error) {
 
 	if res.StatusCode != 200 {
 		loginBody, _ := io.ReadAll(res.Body)
-		logger().Debugf("login response (status = %s) failed with body: %s", res.Status, string(loginBody))
+		logger().Debug().Msgf("login response (status = %s) failed with body: %s", res.Status, string(loginBody))
 		err = errors.New(fmt.Sprintf("http error code %d", res.StatusCode))
 		return
 	}

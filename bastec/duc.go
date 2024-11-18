@@ -8,15 +8,22 @@ import (
 	"errors"
 	"fmt"
 	"github.com/rotisserie/eris"
-	"github.com/sirupsen/logrus"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 	"io"
 	"net/http"
 	"net/url"
 	"strings"
 )
 
-func logger() *logrus.Entry {
-	return logrus.WithField("logger", "bastec")
+var lg *zerolog.Logger
+
+func logger() *zerolog.Logger {
+	if lg == nil {
+		l := log.Logger.With().Str("logger", "bastec").Logger()
+		lg = &l
+	}
+	return lg
 }
 
 //goland:noinspection GoNameStartsWithPackageName
@@ -53,7 +60,7 @@ func Connect(url url.URL) (bastecClient *BastecClient, err error) {
 	query.Add("username", user)
 	requesterURL.RawQuery = query.Encode()
 	requesterURL.User = nil
-	logger().Debugf("connecting to bastec '%s'", requesterURL.String())
+	logger().Debug().Msgf("connecting to bastec '%s'", requesterURL.String())
 	saltResponse, err := getSalts(requesterURL)
 	if err != nil {
 		return
@@ -68,7 +75,7 @@ func Connect(url url.URL) (bastecClient *BastecClient, err error) {
 	rpcURL.Path = "if/json_rpc.js"
 	rpcURL.RawQuery = ""
 
-	logger().Infof("Connected to bastec duc '%s'", requesterURL.String())
+	logger().Info().Msgf("Connected to bastec duc '%s'", requesterURL.String())
 
 	bastecClient = &BastecClient{
 		sessionId:  sessionId,
@@ -97,17 +104,18 @@ func (bastecClient *BastecClient) jsonRpc(request JsonRpcRequest) (body []byte, 
 
 	jsonBody, err := json.Marshal(request)
 	if err != nil {
-		logger().WithError(err).Fatal(eris.Wrapf(err, "failed to create json request"))
+		logger().Fatal().Err(err).Msg("Failed to create json request")
 	}
 	reader := bytes.NewReader(jsonBody)
-	logger().Trace("jsonRpc request body: ", string(jsonBody))
+	logger().Trace().Msgf("jsonRpc request body: %s", string(jsonBody))
 
 	requestUrl := bastecClient.RequestURL.String()
 	req, err := http.NewRequest(http.MethodPost, requestUrl, reader)
 	if err != nil {
 		logger().
-			WithError(eris.Wrapf(err, "failed to create new request")).
-			Error("failed to create new request")
+			Error().
+			Err(eris.Wrapf(err, "failed to create new request")).
+			Msg("failed to create new request")
 	}
 	req.Header.Add("Content-Type", "application/json")
 	req.Header.Add("Cookie", fmt.Sprintf("SESSION_ID=%s", bastecClient.sessionId))
@@ -126,7 +134,7 @@ func (bastecClient *BastecClient) jsonRpc(request JsonRpcRequest) (body []byte, 
 		return
 	}
 	body = responseBody
-	logger().Trace("jsonRpc response body: ", string(body))
+	logger().Trace().Msgf("jsonRpc response body: %s", string(body))
 	return
 }
 

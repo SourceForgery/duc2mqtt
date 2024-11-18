@@ -5,7 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"github.com/rotisserie/eris"
-	"github.com/sirupsen/logrus"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 )
 
 type PointConfig struct {
@@ -43,12 +44,12 @@ func (bastecClient *BastecClient) Browse() (valueResponse *BrowseResponse, err e
 		return nil, eris.Wrapf(err, "failed to parse json")
 	}
 
-	if logger().Logger.Level >= logrus.TraceLevel {
+	if log.Logger.GetLevel() <= zerolog.DebugLevel {
 		b, _ := json.MarshalIndent(browseResponse, "", "\t")
-		logger().Trace(string(b))
+		logger().Debug().Msg(string(b))
 	}
 	for _, point := range browseResponse.Result.Points {
-		logger().Debugf("Found sensor '%s' on device '%s' with ", point.Pid, browseResponse.Result.DevId)
+		logger().Debug().Msgf("Found sensor '%s' on device '%s' with ", point.Pid, browseResponse.Result.DevId)
 	}
 	if browseResponse.Error != "" {
 		err = errors.New(fmt.Sprintf("browse error: %s", browseResponse.Error))

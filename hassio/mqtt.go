@@ -5,7 +5,8 @@ import (
 	"errors"
 	MQTT "github.com/eclipse/paho.mqtt.golang"
 	"github.com/rotisserie/eris"
-	"github.com/sirupsen/logrus"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 	"net/url"
 )
 
@@ -18,13 +19,13 @@ type Client struct {
 }
 
 func onConnectionLost(_ MQTT.Client, err error) {
-	logger().Infof("Connection lost: %v", err)
+	logger().Info().Msg("Connection lost")
 }
 
 func (hassioClient *Client) sendMessage(topic string, payload interface{}) (err error) {
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
-		logger().Fatalf("Failed to serialize payload to %s", topic)
+		logger().Fatal().Msgf("Failed to serialize payload to %s", topic)
 	}
 
 	token := hassioClient.client.Publish(topic, 0, false, payloadBytes)
@@ -32,10 +33,10 @@ func (hassioClient *Client) sendMessage(topic string, payload interface{}) (err 
 	if token.Error() != nil {
 		return eris.Wrapf(token.Error(), "Error publishing to topic %s\n", topic)
 	} else {
-		if logrus.GetLevel() >= logrus.TraceLevel {
-			logger().WithField("body", string(payloadBytes)).Tracef("Message published to topic %s\n", topic)
+		if log.Logger.GetLevel() <= zerolog.DebugLevel {
+			logger().Trace().Str("body", string(payloadBytes)).Msgf("Message published to topic %s", topic)
 		} else {
-			logger().Debugf("Message published to topic %s\n", topic)
+			logger().Debug().Msgf("Message published to topic %s", topic)
 		}
 	}
 	return nil
@@ -57,7 +58,7 @@ func ConnectMqtt(url url.URL, amqpVhost string, uniqueId string, prefix string) 
 	}
 	urlCopy := url
 	urlCopy.User = nil
-	logger().Debugf("Connecting to mqtt server '%s'", urlCopy.String())
+	logger().Debug().Msgf("Connecting to mqtt server '%s'", urlCopy.String())
 
 	url.User = nil
 
@@ -70,16 +71,16 @@ func ConnectMqtt(url url.URL, amqpVhost string, uniqueId string, prefix string) 
 	}
 
 	var onConnect MQTT.OnConnectHandler = func(_ MQTT.Client) {
-		logger().Infof("MQTT connection established")
+		logger().Info().Msg("MQTT connection established")
 		if hassioClient.Device != nil {
 			err := hassioClient.SendLastWill()
 			if err != nil {
-				logger().Errorf("Failed to write last will: %v", err)
+				logger().Error().Err(err).Msg("Failed to write last will")
 				return
 			}
 			err = hassioClient.SendAvailability()
 			if err != nil {
-				logger().Errorf("Failed to send availability: %v", err)
+				logger().Error().Err(err).Msg("Failed to send availability")
 				return
 			}
 		}
@@ -93,9 +94,9 @@ func ConnectMqtt(url url.URL, amqpVhost string, uniqueId string, prefix string) 
 		SetPassword(password).
 		SetUsername(userName)
 
-	if logrus.GetLevel() >= logrus.DebugLevel {
+	if log.Logger.GetLevel() <= zerolog.DebugLevel {
 		var messagePubHandler MQTT.MessageHandler = func(client MQTT.Client, msg MQTT.Message) {
-			logger().Debugf("Received message: %s from topic: %s\n", string(msg.Payload()), msg.Topic())
+			logger().Debug().Msgf("Received message: %s from topic: %s\n", string(msg.Payload()), msg.Topic())
 		}
 		opts.DefaultPublishHandler = messagePubHandler
 	}
@@ -107,7 +108,7 @@ func ConnectMqtt(url url.URL, amqpVhost string, uniqueId string, prefix string) 
 	}
 	hassioClient.client = client
 
-	logger().Infof("Connected to mqtt server '%s'", urlCopy.String())
+	logger().Info().Msgf("Connected to mqtt server '%s'", urlCopy.String())
 
 	return
 }
