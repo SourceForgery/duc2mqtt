@@ -34,8 +34,12 @@ func (a AlarmSensorConfig) Decimals() int {
 	return 0
 }
 
-func (a *AlarmSensorConfig) SensorType() string {
+func (a AlarmSensorConfig) SensorType() string {
 	return "binary_sensor"
+}
+
+func (a AlarmSensorConfig) SensorId() string {
+	return a.sensorId
 }
 
 func (a AlarmSensorConfig) ConvertValue(value float64) string {

@@ -28,6 +28,7 @@ type AvailabilityMessage struct {
 type SensorConfig interface {
 	DeviceClass() string
 	Name() string
+	SensorId() string
 	UnitOfMeasurement() string
 	SensorType() string
 	ConvertValue(value float64) string

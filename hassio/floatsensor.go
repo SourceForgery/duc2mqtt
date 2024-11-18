@@ -57,3 +57,5 @@ func (f *FloatSensorConfig) ValueTemplate() string {
 func (f *FloatSensorConfig) StateClass() string {
 	return f.stateClass
 }
+
+func (f *FloatSensorConfig) SensorId() string { return f.sensorId }
