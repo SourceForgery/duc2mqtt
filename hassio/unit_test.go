@@ -96,11 +96,15 @@ func (m fakeMessage) Ack()              {}
 
 func payloadString(t *testing.T, payload interface{}) string {
 	t.Helper()
-	b, ok := payload.([]byte)
-	if !ok {
-		t.Fatalf("expected []byte payload, got %T", payload)
+	switch value := payload.(type) {
+	case []byte:
+		return string(value)
+	case string:
+		return value
+	default:
+		t.Fatalf("expected []byte or string payload, got %T", payload)
+		return ""
 	}
-	return string(b)
 }
 
 func newUnitClient(fake *fakeMQTTClient) *Client {
@@ -217,10 +221,10 @@ func TestSendAvailability(t *testing.T) {
 	for _, call := range fake.publishCalls {
 		seen[call.topic] = payloadString(t, call.payload)
 	}
-	if seen["homeassistant/sensor/device-123/availability"] != "\"online\"" {
+	if seen["homeassistant/sensor/device-123/availability"] != "online" {
 		t.Fatalf("unexpected sensor availability payload: %q", seen["homeassistant/sensor/device-123/availability"])
 	}
-	if seen["homeassistant/binary_sensor/device-123/availability"] != "\"online\"" {
+	if seen["homeassistant/binary_sensor/device-123/availability"] != "online" {
 		t.Fatalf("unexpected binary sensor availability payload: %q", seen["homeassistant/binary_sensor/device-123/availability"])
 	}
 }

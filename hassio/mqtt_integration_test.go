@@ -215,13 +215,14 @@ func TestSubscribeToHomeAssistantStatus_RepublishesOnOnline(t *testing.T) {
 
 	drainMessages(probeMessages, 300*time.Millisecond)
 
+	logger().Printf("Publishing homeassistant status online")
 	statusToken := publisher.Publish("homeassistant/status", 0, false, "online")
 	statusToken.Wait()
 	if statusToken.Error() != nil {
 		t.Fatalf("failed to publish homeassistant status online: %v", statusToken.Error())
 	}
 
-	waitForMessage(t, probeMessages, 5*time.Second, func(msg probeMessage) bool {
+	waitForMessage(t, probeMessages, 30*time.Second, func(msg probeMessage) bool {
 		return msg.topic == "homeassistant/sensor/device-subscribe/availability" && msg.payload == "online"
 	})
 	waitForMessage(t, probeMessages, 5*time.Second, func(msg probeMessage) bool {

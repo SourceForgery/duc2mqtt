@@ -2,12 +2,13 @@ package hassio
 
 import (
 	"fmt"
+	"slices"
+	"strings"
+
 	MQTT "github.com/eclipse/paho.mqtt.golang"
 	"github.com/rotisserie/eris"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
-	"slices"
-	"strings"
 )
 
 var lg *zerolog.Logger
@@ -91,7 +92,7 @@ func (hassioClient *Client) sensorTypes() []string {
 
 func (hassioClient *Client) SendAvailability() (err error) {
 	for _, sensorType := range hassioClient.sensorTypes() {
-		err = hassioClient.sendMessage(fmt.Sprintf("%s/%s/%s/availability", hassioClient.prefix, sensorType, hassioClient.uniqueDeviceId), "online")
+		err = hassioClient.sendRawMessage(fmt.Sprintf("%s/%s/%s/availability", hassioClient.prefix, sensorType, hassioClient.uniqueDeviceId), []byte("online"))
 		if err != nil {
 			return eris.Wrapf(err, "failed to send availability message\n")
 		}

@@ -3,11 +3,12 @@ package hassio
 import (
 	"encoding/json"
 	"errors"
+	"net/url"
+
 	MQTT "github.com/eclipse/paho.mqtt.golang"
 	"github.com/rotisserie/eris"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
-	"net/url"
 )
 
 type Client struct {
@@ -27,7 +28,10 @@ func (hassioClient *Client) sendMessage(topic string, payload interface{}) (err 
 	if err != nil {
 		logger().Fatal().Msgf("Failed to serialize payload to %s", topic)
 	}
+	return hassioClient.sendRawMessage(topic, payloadBytes)
+}
 
+func (hassioClient *Client) sendRawMessage(topic string, payloadBytes []byte) (err error) {
 	token := hassioClient.client.Publish(topic, 0, false, payloadBytes)
 	token.Wait()
 	if token.Error() != nil {
