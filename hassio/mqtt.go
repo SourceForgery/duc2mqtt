@@ -23,7 +23,7 @@ func onConnectionLost(_ MQTT.Client, err error) {
 	logger().Info().Msg("Connection lost")
 }
 
-func (hassioClient *Client) sendMessage(topic string, payload interface{}) (err error) {
+func (hassioClient *Client) sendJsonMessage(topic string, payload interface{}) (err error) {
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
 		logger().Fatal().Msgf("Failed to serialize payload to %s", topic)
