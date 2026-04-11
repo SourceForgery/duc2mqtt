@@ -15,8 +15,7 @@ var lg *zerolog.Logger
 
 func logger() *zerolog.Logger {
 	if lg == nil {
-		l := log.Logger.With().Str("logger", "mqtt").Logger()
-		lg = &l
+		lg = new(log.Logger.With().Str("logger", "mqtt").Logger())
 	}
 	return lg
 }

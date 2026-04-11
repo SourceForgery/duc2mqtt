@@ -7,21 +7,21 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/rotisserie/eris"
-	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
 	"io"
 	"net/http"
 	"net/url"
 	"strings"
+
+	"github.com/rotisserie/eris"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 )
 
 var lg *zerolog.Logger
 
 func logger() *zerolog.Logger {
 	if lg == nil {
-		l := log.Logger.With().Str("logger", "bastec").Logger()
-		lg = &l
+		lg = new(log.Logger.With().Str("logger", "bastec").Logger())
 	}
 	return lg
 }
