@@ -48,9 +48,7 @@ jobs:
           git commit -a -m "Update versions"
 
       - name: Push changes
-        uses: ad-m/github-push-action@v1.0.0
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+        run: git push origin "HEAD:${GITHUB_REF_NAME}"
 
       - name: Create Release
         id: create_release
