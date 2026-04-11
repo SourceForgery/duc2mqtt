@@ -22,6 +22,11 @@ type probeMessage struct {
 	retained bool
 }
 
+type messageExpectation struct {
+	name      string
+	predicate func(probeMessage) bool
+}
+
 func TestConnectMqtt_RequiresCredentials(t *testing.T) {
 	t.Parallel()
 
@@ -90,11 +95,19 @@ func TestSendAvailability_PublishesOneOnlinePerSensorType(t *testing.T) {
 		t.Fatalf("SendAvailability failed: %v", err)
 	}
 
-	waitForMessage(t, probeMessages, 5*time.Second, func(msg probeMessage) bool {
-		return msg.topic == "homeassistant/sensor/device-availability/availability" && msg.payload == "online"
-	})
-	waitForMessage(t, probeMessages, 5*time.Second, func(msg probeMessage) bool {
-		return msg.topic == "homeassistant/binary_sensor/device-availability/availability" && msg.payload == "online"
+	waitForAllMessages(t, probeMessages, 5*time.Second, []messageExpectation{
+		{
+			name: "sensor availability online",
+			predicate: func(msg probeMessage) bool {
+				return msg.topic == "homeassistant/sensor/device-availability/availability" && msg.payload == "online"
+			},
+		},
+		{
+			name: "binary sensor availability online",
+			predicate: func(msg probeMessage) bool {
+				return msg.topic == "homeassistant/binary_sensor/device-availability/availability" && msg.payload == "online"
+			},
+		},
 	})
 }
 
@@ -110,11 +123,19 @@ func TestSendLastWill_RetainedOfflineIsVisibleToNewSubscriber(t *testing.T) {
 	probeClient, probeMessages := newProbeSubscriber(t, broker.address, "probe-lastwill")
 	defer probeClient.Disconnect(250)
 
-	waitForMessage(t, probeMessages, 5*time.Second, func(msg probeMessage) bool {
-		return msg.topic == "homeassistant/sensor/device-lastwill/availability" && msg.payload == "offline" && msg.retained
-	})
-	waitForMessage(t, probeMessages, 5*time.Second, func(msg probeMessage) bool {
-		return msg.topic == "homeassistant/binary_sensor/device-lastwill/availability" && msg.payload == "offline" && msg.retained
+	waitForAllMessages(t, probeMessages, 5*time.Second, []messageExpectation{
+		{
+			name: "sensor lastwill offline retained",
+			predicate: func(msg probeMessage) bool {
+				return msg.topic == "homeassistant/sensor/device-lastwill/availability" && msg.payload == "offline" && msg.retained
+			},
+		},
+		{
+			name: "binary sensor lastwill offline retained",
+			predicate: func(msg probeMessage) bool {
+				return msg.topic == "homeassistant/binary_sensor/device-lastwill/availability" && msg.payload == "offline" && msg.retained
+			},
+		},
 	})
 }
 
@@ -144,15 +165,23 @@ func TestSendConfigurationData_PublishesExpectedDiscoveryMessages(t *testing.T) 
 		t.Fatalf("SendConfigurationData failed: %v", err)
 	}
 
-	powerMessage := waitForMessage(t, probeMessages, 5*time.Second, func(msg probeMessage) bool {
-		return msg.topic == "homeassistant/sensor/device-config/power_main/config"
-	})
-	alarmMessage := waitForMessage(t, probeMessages, 5*time.Second, func(msg probeMessage) bool {
-		return msg.topic == "homeassistant/binary_sensor/device-config/alarm_main/config"
+	matched := waitForAllMessages(t, probeMessages, 5*time.Second, []messageExpectation{
+		{
+			name: "power discovery",
+			predicate: func(msg probeMessage) bool {
+				return msg.topic == "homeassistant/sensor/device-config/power_main/config"
+			},
+		},
+		{
+			name: "alarm discovery",
+			predicate: func(msg probeMessage) bool {
+				return msg.topic == "homeassistant/binary_sensor/device-config/alarm_main/config"
+			},
+		},
 	})
 
-	assertDiscoveryPayload(t, powerMessage.payload, "power.main", "Main Power", "homeassistant/sensor/device-config/state")
-	assertDiscoveryPayload(t, alarmMessage.payload, "alarm.main", "Main Alarm", "homeassistant/binary_sensor/device-config/state")
+	assertDiscoveryPayload(t, matched["power discovery"].payload, "power.main", "Main Power", "homeassistant/sensor/device-config/state")
+	assertDiscoveryPayload(t, matched["alarm discovery"].payload, "alarm.main", "Main Alarm", "homeassistant/binary_sensor/device-config/state")
 }
 
 func TestSendSensorData_PublishesJSONState(t *testing.T) {
@@ -215,18 +244,25 @@ func TestSubscribeToHomeAssistantStatus_RepublishesOnOnline(t *testing.T) {
 
 	drainMessages(probeMessages, 300*time.Millisecond)
 
-	logger().Printf("Publishing homeassistant status online")
 	statusToken := publisher.Publish("homeassistant/status", 0, false, "online")
 	statusToken.Wait()
 	if statusToken.Error() != nil {
 		t.Fatalf("failed to publish homeassistant status online: %v", statusToken.Error())
 	}
 
-	waitForMessage(t, probeMessages, 30*time.Second, func(msg probeMessage) bool {
-		return msg.topic == "homeassistant/sensor/device-subscribe/availability" && msg.payload == "online"
-	})
-	waitForMessage(t, probeMessages, 5*time.Second, func(msg probeMessage) bool {
-		return msg.topic == "homeassistant/sensor/device-subscribe/power_main/config"
+	waitForAllMessages(t, probeMessages, 30*time.Second, []messageExpectation{
+		{
+			name: "availability republished",
+			predicate: func(msg probeMessage) bool {
+				return msg.topic == "homeassistant/sensor/device-subscribe/availability" && msg.payload == "online"
+			},
+		},
+		{
+			name: "config republished",
+			predicate: func(msg probeMessage) bool {
+				return msg.topic == "homeassistant/sensor/device-subscribe/power_main/config"
+			},
+		},
 	})
 }
 
@@ -311,6 +347,47 @@ func waitForMessage(t *testing.T, messages <-chan probeMessage, timeout time.Dur
 			t.Fatalf("timed out after %s waiting for expected mqtt message (seen %d messages: %+v)", timeout, len(seen), seen)
 		}
 	}
+}
+
+func waitForAllMessages(
+	t *testing.T,
+	messages <-chan probeMessage,
+	timeout time.Duration,
+	expectations []messageExpectation,
+) map[string]probeMessage {
+	t.Helper()
+
+	matched := make(map[string]probeMessage, len(expectations))
+	deadline := time.After(timeout)
+	seen := make([]probeMessage, 0, 20)
+
+	for len(matched) < len(expectations) {
+		select {
+		case msg := <-messages:
+			if len(seen) < 20 {
+				seen = append(seen, msg)
+			}
+
+			for _, expected := range expectations {
+				if _, ok := matched[expected.name]; ok {
+					continue
+				}
+				if expected.predicate(msg) {
+					matched[expected.name] = msg
+				}
+			}
+		case <-deadline:
+			missing := make([]string, 0, len(expectations))
+			for _, expected := range expectations {
+				if _, ok := matched[expected.name]; !ok {
+					missing = append(missing, expected.name)
+				}
+			}
+			t.Fatalf("timed out after %s waiting for expected mqtt messages (missing: %v, seen %d messages: %+v)", timeout, missing, len(seen), seen)
+		}
+	}
+
+	return matched
 }
 
 func drainMessages(messages <-chan probeMessage, duration time.Duration) {
